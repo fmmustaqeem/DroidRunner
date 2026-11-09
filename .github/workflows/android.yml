@@ -44,7 +44,7 @@ jobs:
       - run: tools/check-executed-everywhere.sh
       - uses: actions/upload-artifact@v7
         with:
-          name: app-debug
+          name: fmdroid
           path: app/build/outputs/apk/debug/app-debug.apk
 
   # The operator matrix is reduced in Python, and every mistake in that
