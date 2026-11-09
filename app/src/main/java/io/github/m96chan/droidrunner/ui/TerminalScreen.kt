@@ -168,13 +168,15 @@ fun TerminalScreen(
                 Text(line, color = TerminalText, fontFamily = FontFamily.Monospace)
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 clipboard.setPrimaryClip(ClipData.newPlainText("Terminal output", lines.joinToString("\n")))
             }, modifier = Modifier.weight(1f)) { Text("Copy All") }
             OutlinedButton(onClick = {
                 clipboard.setPrimaryClip(ClipData.newPlainText("Ubuntu command", input.text))
             }, modifier = Modifier.weight(1f)) { Text("Copy") }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 input = input.copy(selection = TextRange(0, input.text.length))
             }, modifier = Modifier.weight(1f)) { Text("Select All") }
@@ -215,7 +217,7 @@ fun TerminalScreen(
                     lines.add("$ $command")
                     runCatching { session.send(command) }
                         .onFailure { lines.add("[send error] ${it.message}") }
-                    input = ""
+                    input = TextFieldValue("")
                 }
             }) { Text("Run") }
         }
