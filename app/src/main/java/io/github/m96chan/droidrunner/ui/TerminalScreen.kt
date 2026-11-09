@@ -165,7 +165,8 @@ fun TerminalScreen(
                 .verticalScroll(scroll).padding(8.dp),
         ) {
             lines.forEach { line ->
-                Text(line, color = TerminalText, fontFamily = FontFamily.Monospace)
+                val lineColor = if (line.startsWith("$ ")) TerminalInput else TerminalText
+                Text(line, color = lineColor, fontFamily = FontFamily.Monospace)
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
