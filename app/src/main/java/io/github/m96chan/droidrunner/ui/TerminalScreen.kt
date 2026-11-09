@@ -48,7 +48,7 @@ import java.io.OutputStreamWriter
 import java.util.concurrent.atomic.AtomicBoolean
 
 private val TerminalBackground = Color(0xFF101418)
-private val TerminalText = Color(0xFFD6E2E8)
+private val TerminalText = Color.White
 private val TerminalInput = Color(0xFF39FF14)
 private val TerminalGreen = Color(0xFF75D69C)
 
@@ -196,7 +196,6 @@ fun TerminalScreen(
                 value = input,
                 onValueChange = { input = it },
                 textStyle = TextStyle(color = TerminalInput, fontFamily = FontFamily.Monospace),
-                cursorBrush = SolidColor(TerminalInput),
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 label = { Text("Ubuntu command") },
