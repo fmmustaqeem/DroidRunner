@@ -45,6 +45,7 @@ fun DashboardScreen(
     runtime: RuntimeInstaller,
     monitor: SystemMonitor,
     onOpenSetup: () -> Unit,
+    onOpenTerminal: () -> Unit,
     onStartRunner: () -> Unit,
     onStopRunner: () -> Unit,
 ) {
@@ -61,7 +62,7 @@ fun DashboardScreen(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Header(capabilities, runner, onOpenSetup)
+        Header(capabilities, runner, onOpenSetup, onOpenTerminal)
         CpuPanel(system)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MemPanel(system, Modifier.weight(1f))
@@ -75,12 +76,18 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun Header(capabilities: DeviceCapabilities, runner: RunnerSnapshot, onOpenSetup: () -> Unit) {
+private fun Header(capabilities: DeviceCapabilities, runner: RunnerSnapshot, onOpenSetup: () -> Unit, onOpenTerminal: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("DroidRunner", style = MaterialTheme.typography.headlineMedium, color = BtopColors.Text)
         Spacer(Modifier.weight(1f))
         Text("● ", color = runner.state.color(), style = MaterialTheme.typography.bodyLarge)
         Text(runner.label(), color = runner.state.color(), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "Terminal",
+            color = BtopColors.Cyan,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.clickable { onOpenTerminal() }.padding(start = 10.dp),
+        )
         Text(
             "⚙",
             color = BtopColors.Yellow,

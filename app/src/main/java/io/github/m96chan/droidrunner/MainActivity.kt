@@ -29,6 +29,7 @@ import io.github.m96chan.droidrunner.security.SecretStore
 import io.github.m96chan.droidrunner.ui.DashboardScreen
 import io.github.m96chan.droidrunner.ui.PipScreen
 import io.github.m96chan.droidrunner.ui.SetupScreen
+import io.github.m96chan.droidrunner.ui.TerminalScreen
 import io.github.m96chan.droidrunner.ui.shouldOfferPip
 import io.github.m96chan.droidrunner.ui.theme.BtopTheme
 import java.io.File
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
                 val configuredAtLaunch = remember { File(runtime.runtimeDir, ".configured").isFile }
                 // First run drops the user straight into setup.
                 var showSetup by remember { mutableStateOf(!configuredAtLaunch) }
+                var showTerminal by remember { mutableStateOf(false) }
                 val notificationPermission =
                     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
                 val runner by RunnerStatus.snapshot.collectAsState()
@@ -80,11 +82,13 @@ class MainActivity : ComponentActivity() {
 
                 // Keep the system's idea of whether to shrink this activity in
                 // step with what is actually on screen.
-                LaunchedEffect(showSetup, runner.state) {
-                    offerPip(shouldOfferPip(pipSupported, showSetup, runner.state))
+                LaunchedEffect(showSetup, showTerminal, runner.state) {
+                    offerPip(shouldOfferPip(pipSupported, showSetup || showTerminal, runner.state))
                 }
 
-                BackHandler(enabled = showSetup) { showSetup = false }
+                BackHandler(enabled = showSetup || showTerminal) {
+                    if (showTerminal) showTerminal = false else showSetup = false
+                }
 
                 if (inPip) {
                     PipScreen(monitor = monitor)
@@ -99,12 +103,20 @@ class MainActivity : ComponentActivity() {
                         // has already run, so bring it up here (issue #46).
                         onStartRunner = { startRunner() },
                     )
+                } else if (showTerminal) {
+                    TerminalScreen(
+                        runtime = runtime,
+                        nativeLibraryDir = applicationInfo.nativeLibraryDir,
+                        cacheDir = cacheDir,
+                        onBack = { showTerminal = false },
+                    )
                 } else {
                     DashboardScreen(
                         capabilities = capabilities,
                         runtime = runtime,
                         monitor = monitor,
                         onOpenSetup = { showSetup = true },
+                        onOpenTerminal = { showTerminal = true },
                         onStartRunner = { startRunner() },
                         onStopRunner = {
                             startService(Intent(this, RunnerService::class.java).setAction(RunnerService.ACTION_STOP))
