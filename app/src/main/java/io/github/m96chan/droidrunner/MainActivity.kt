@@ -82,11 +82,13 @@ class MainActivity : ComponentActivity() {
 
                 // Keep the system's idea of whether to shrink this activity in
                 // step with what is actually on screen.
-                LaunchedEffect(showSetup, runner.state) {
-                    offerPip(shouldOfferPip(pipSupported, showSetup, runner.state))
+                LaunchedEffect(showSetup, showTerminal, runner.state) {
+                    offerPip(shouldOfferPip(pipSupported, showSetup || showTerminal, runner.state))
                 }
 
-                BackHandler(enabled = showSetup) { showSetup = false }
+                BackHandler(enabled = showSetup || showTerminal) {
+                    if (showTerminal) showTerminal = false else showSetup = false
+                }
 
                 if (inPip) {
                     PipScreen(monitor = monitor)
