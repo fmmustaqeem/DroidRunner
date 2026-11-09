@@ -1,5 +1,7 @@
 package io.github.m96chan.droidrunner.ui
 
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -110,15 +112,19 @@ fun TerminalScreen(
     onBack: () -> Unit,
 ) {
     val lines = remember { mutableStateListOf<String>() }
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    val appendLine: (String) -> Unit = { line ->
+        mainHandler.post {
+            lines.add(line)
+            if (lines.size > 1200) repeat(lines.size - 1200) { lines.removeAt(0) }
+        }
+    }
     var input by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Starting shell…") }
     val scroll = rememberScrollState()
     val keyboard = LocalSoftwareKeyboardController.current
     val session = remember(runtime) {
-        TerminalSession(runtime, nativeLibraryDir, cacheDir) { line ->
-            lines.add(line)
-            if (lines.size > 1200) lines.removeRange(0, lines.size - 1200)
-        }
+        TerminalSession(runtime, nativeLibraryDir, cacheDir, appendLine)
     }
 
     DisposableEffect(session) {
