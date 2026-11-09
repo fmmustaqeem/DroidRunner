@@ -1,8 +1,5 @@
 package io.github.m96chan.droidrunner.ui
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.background
@@ -14,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -31,8 +29,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.graphics.SolidColor
@@ -130,8 +126,6 @@ fun TerminalScreen(
         }
     }
     var input by remember { mutableStateOf(TextFieldValue("")) }
-    val context = LocalContext.current
-    val clipboard = remember(context) { context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager }
     var status by remember { mutableStateOf("Starting shell…") }
     val scroll = rememberScrollState()
     val keyboard = LocalSoftwareKeyboardController.current
@@ -160,36 +154,16 @@ fun TerminalScreen(
             OutlinedButton(onClick = onBack) { Text("Dashboard") }
         }
         Text(status, color = TerminalGreen)
-        Column(
-            Modifier.weight(1f).fillMaxWidth().background(Color(0xFF080B0E))
-                .verticalScroll(scroll).padding(8.dp),
-        ) {
-            lines.forEach { line ->
-                val lineColor = if (line.startsWith("$ ")) TerminalInput else TerminalText
-                Text(line, color = lineColor, fontFamily = FontFamily.Monospace)
+        SelectionContainer {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().background(Color(0xFF080B0E))
+                    .verticalScroll(scroll).padding(8.dp),
+            ) {
+                lines.forEach { line ->
+                    val lineColor = if (line.startsWith("$ ")) TerminalInput else TerminalText
+                    Text(line, color = lineColor, fontFamily = FontFamily.Monospace)
+                }
             }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                clipboard.setPrimaryClip(ClipData.newPlainText("Terminal output", lines.joinToString("\n")))
-            }, modifier = Modifier.weight(1f)) { Text("Copy All") }
-            OutlinedButton(onClick = {
-                clipboard.setPrimaryClip(ClipData.newPlainText("Ubuntu command", input.text))
-            }, modifier = Modifier.weight(1f)) { Text("Copy") }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                input = input.copy(selection = TextRange(0, input.text.length))
-            }, modifier = Modifier.weight(1f)) { Text("Select All") }
-            OutlinedButton(onClick = {
-                val clip = clipboard.primaryClip
-                val pasted = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).coerceToText(context).toString() else ""
-                val start = input.selection.min
-                val end = input.selection.max
-                val updated = input.text.replaceRange(start, end, pasted)
-                val cursor = start + pasted.length
-                input = TextFieldValue(updated, TextRange(cursor))
-            }, modifier = Modifier.weight(1f)) { Text("Paste") }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
