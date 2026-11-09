@@ -53,9 +53,9 @@ private val TerminalGreen = Color(0xFF75D69C)
  * terminal resize semantics require a native PTY implementation.
  */
 private class TerminalSession(
-    runtime: RuntimeInstaller,
-    nativeLibraryDir: String,
-    cacheDir: java.io.File,
+    private val runtime: RuntimeInstaller,
+    private val nativeLibraryDir: String,
+    private val cacheDir: java.io.File,
     private val onLine: (String) -> Unit,
 ) {
     private val closed = AtomicBoolean(false)
@@ -71,11 +71,12 @@ private class TerminalSession(
             command = listOf("/bin/bash", "--noprofile", "--norc"),
         )
         command.redirectErrorStream(true)
-        process = command.start()
-        writer = BufferedWriter(OutputStreamWriter(process!!.outputStream))
+        val running = command.start()
+        process = running
+        writer = BufferedWriter(OutputStreamWriter(running.outputStream))
         Thread({
             try {
-                BufferedReader(InputStreamReader(process!!.inputStream)).useLines { lines ->
+                BufferedReader(InputStreamReader(running.inputStream)).useLines { lines ->
                     lines.forEach { if (!closed.get()) onLine(it) }
                 }
             } catch (failure: Throwable) {
