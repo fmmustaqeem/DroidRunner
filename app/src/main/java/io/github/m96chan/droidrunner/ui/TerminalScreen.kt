@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -146,7 +148,14 @@ fun TerminalScreen(
     LaunchedEffect(lines.size) { scroll.animateScrollTo(scroll.maxValue) }
 
     Column(
-        Modifier.fillMaxSize().background(TerminalBackground).padding(12.dp),
+        Modifier
+            .fillMaxSize()
+            .background(TerminalBackground)
+            // Keep the command composer and action buttons above the IME and
+            // Android navigation area; only the terminal output is scrollable.
+            .imePadding()
+            .navigationBarsPadding()
+            .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
