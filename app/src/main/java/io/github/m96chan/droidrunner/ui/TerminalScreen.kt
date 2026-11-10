@@ -30,10 +30,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -49,6 +49,9 @@ private val TerminalBackground = Color(0xFF101418)
 private val TerminalText = Color.White
 private val TerminalInput = Color(0xFF39FF14)
 private val TerminalGreen = Color(0xFF75D69C)
+private const val TERMINAL_HISTORY_PREFS = "fm_droid_terminal_history"
+private const val TERMINAL_HISTORY_KEY = "output_lines"
+private const val TERMINAL_HISTORY_LIMIT = 1200
 
 /**
  * App-private shell in the installed Ubuntu rootfs. This is deliberately a
@@ -119,12 +122,25 @@ fun TerminalScreen(
     cacheDir: java.io.File,
     onBack: () -> Unit,
 ) {
-    val lines = remember { mutableStateListOf<String>() }
+    val context = LocalContext.current
+    val historyPrefs = remember(context) {
+        context.getSharedPreferences(TERMINAL_HISTORY_PREFS, android.content.Context.MODE_PRIVATE)
+    }
+    val lines = remember(historyPrefs) {
+        mutableStateListOf<String>().apply {
+            val saved = historyPrefs.getString(TERMINAL_HISTORY_KEY, null)
+            if (!saved.isNullOrEmpty()) {
+                addAll(saved.split('\n').takeLast(TERMINAL_HISTORY_LIMIT))
+            }
+        }
+    }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     val appendLine: (String) -> Unit = { line ->
         mainHandler.post {
             lines.add(line)
-            if (lines.size > 1200) repeat(lines.size - 1200) { lines.removeAt(0) }
+            if (lines.size > TERMINAL_HISTORY_LIMIT) {
+                repeat(lines.size - TERMINAL_HISTORY_LIMIT) { lines.removeAt(0) }
+            }
         }
     }
     var input by remember { mutableStateOf(TextFieldValue("")) }
@@ -145,14 +161,19 @@ fun TerminalScreen(
         }
         onDispose { session.stop() }
     }
-    LaunchedEffect(lines.size) { scroll.animateScrollTo(scroll.maxValue) }
+
+    // Save the visible terminal transcript locally after every appended line.
+    // apply() writes asynchronously and does not block the UI thread.
+    LaunchedEffect(lines.size) {
+        val snapshot = lines.takeLast(TERMINAL_HISTORY_LIMIT).joinToString("\n")
+        historyPrefs.edit().putString(TERMINAL_HISTORY_KEY, snapshot).apply()
+        scroll.animateScrollTo(scroll.maxValue)
+    }
 
     Column(
         Modifier
             .fillMaxSize()
             .background(TerminalBackground)
-            // Keep the command composer and action buttons above the IME and
-            // Android navigation area; only the terminal output is scrollable.
             .imePadding()
             .navigationBarsPadding()
             .padding(12.dp),
