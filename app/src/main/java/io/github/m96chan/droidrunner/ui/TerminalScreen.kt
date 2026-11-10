@@ -164,7 +164,7 @@ fun TerminalScreen(
 
     // Save the visible terminal transcript locally after every appended line.
     // apply() writes asynchronously and does not block the UI thread.
-    LaunchedEffect(lines.size) {
+    LaunchedEffect(lines.toList()) {
         val snapshot = lines.takeLast(TERMINAL_HISTORY_LIMIT).joinToString("\n")
         historyPrefs.edit().putString(TERMINAL_HISTORY_KEY, snapshot).apply()
         scroll.animateScrollTo(scroll.maxValue)
