@@ -5,6 +5,8 @@ import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
@@ -27,6 +29,7 @@ import io.github.m96chan.droidrunner.runner.RunnerStatus
 import io.github.m96chan.droidrunner.runtime.RuntimeInstaller
 import io.github.m96chan.droidrunner.security.SecretStore
 import io.github.m96chan.droidrunner.ui.DashboardScreen
+import io.github.m96chan.droidrunner.ui.FloatingOverlayService
 import io.github.m96chan.droidrunner.ui.PipScreen
 import io.github.m96chan.droidrunner.ui.SetupScreen
 import io.github.m96chan.droidrunner.ui.TerminalScreen
@@ -83,7 +86,7 @@ class MainActivity : ComponentActivity() {
                 // Keep the system's idea of whether to shrink this activity in
                 // step with what is actually on screen.
                 LaunchedEffect(showSetup, showTerminal, runner.state) {
-                    offerPip(shouldOfferPip(pipSupported, showSetup || showTerminal, runner.state))
+                    offerPip(false)
                 }
 
                 BackHandler(enabled = showSetup || showTerminal) {
@@ -117,6 +120,7 @@ class MainActivity : ComponentActivity() {
                         monitor = monitor,
                         onOpenSetup = { showSetup = true },
                         onOpenTerminal = { showTerminal = true },
+                        onToggleFloating = { toggleFloatingWindow() },
                         onStartRunner = { startRunner() },
                         onStopRunner = {
                             startService(Intent(this, RunnerService::class.java).setAction(RunnerService.ACTION_STOP))
@@ -132,6 +136,19 @@ class MainActivity : ComponentActivity() {
      * leaves; below that the activity has to ask, and [onUserLeaveHint] is the
      * only moment it may.
      */
+    private fun toggleFloatingWindow() {
+        if (!Settings.canDrawOverlays(this)) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivity(intent)
+            return
+        }
+        if (FloatingOverlayService.isShowing) {
+            stopService(Intent(this, FloatingOverlayService::class.java))
+        } else {
+            startService(Intent(this, FloatingOverlayService::class.java))
+        }
+    }
+
     private fun offerPip(offered: Boolean) {
         pipOffered = offered
         if (!pipSupported || Build.VERSION.SDK_INT < 31) return
@@ -148,8 +165,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= 31 || !pipOffered) return
-        runCatching { enterPictureInPictureMode(pipParams(autoEnter = false)) }
+        if (Settings.canDrawOverlays(this) &&
+            RunnerStatus.snapshot.value.state != RunnerState.STOPPED
+        ) {
+            runCatching { startService(Intent(this, FloatingOverlayService::class.java)) }
+        }
     }
 
     override fun onPictureInPictureModeChanged(
