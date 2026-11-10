@@ -46,6 +46,7 @@ fun DashboardScreen(
     monitor: SystemMonitor,
     onOpenSetup: () -> Unit,
     onOpenTerminal: () -> Unit,
+    onToggleFloating: () -> Unit,
     onStartRunner: () -> Unit,
     onStopRunner: () -> Unit,
 ) {
@@ -63,6 +64,24 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Header(capabilities, runner, onOpenSetup, onOpenTerminal)
+        // Primary controls stay above the scrollable dashboard content.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedButton(onClick = onOpenSetup, modifier = Modifier.weight(1f)) { Text("Setup") }
+            OutlinedButton(onClick = onOpenTerminal, modifier = Modifier.weight(1f)) { Text("Terminal") }
+            OutlinedButton(onClick = onToggleFloating, modifier = Modifier.weight(1f)) { Text("Floating") }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                enabled = runtime.installed && File(runtime.runtimeDir, ".configured").isFile && runner.state == RunnerState.STOPPED,
+                onClick = onStartRunner,
+                modifier = Modifier.weight(1f),
+            ) { Text("Start Runner") }
+            OutlinedButton(
+                enabled = runner.state != RunnerState.STOPPED,
+                onClick = onStopRunner,
+                modifier = Modifier.weight(1f),
+            ) { Text("Stop Runner") }
+        }
         CpuPanel(system)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MemPanel(system, Modifier.weight(1f))
@@ -315,22 +334,7 @@ private fun RunnerPanel(
                 )
             }
         }
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                enabled = runtime.installed && configuredRepo != null && runner.state == RunnerState.STOPPED,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = BtopColors.Green,
-                    contentColor = BtopColors.Background,
-                ),
-                onClick = onStartRunner,
-                modifier = Modifier.weight(1f),
-            ) { Text("Start") }
-            OutlinedButton(
-                enabled = runner.state != RunnerState.STOPPED,
-                onClick = onStopRunner,
-                modifier = Modifier.weight(1f),
-            ) { Text("Stop") }
-        }
+
     }
 }
 
