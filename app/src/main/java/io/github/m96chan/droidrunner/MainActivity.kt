@@ -1,13 +1,11 @@
 package io.github.m96chan.droidrunner
 
 import android.Manifest
-import android.app.PictureInPictureParams
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.content.res.Configuration
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
-import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,23 +25,13 @@ import io.github.m96chan.droidrunner.runner.RunnerStatus
 import io.github.m96chan.droidrunner.runtime.RuntimeInstaller
 import io.github.m96chan.droidrunner.security.SecretStore
 import io.github.m96chan.droidrunner.ui.DashboardScreen
-import io.github.m96chan.droidrunner.ui.PipScreen
+import io.github.m96chan.droidrunner.ui.FloatingOverlayService
 import io.github.m96chan.droidrunner.ui.SetupScreen
-import io.github.m96chan.droidrunner.ui.shouldOfferPip
+import io.github.m96chan.droidrunner.ui.TerminalScreen
 import io.github.m96chan.droidrunner.ui.theme.BtopTheme
 import java.io.File
 
 class MainActivity : ComponentActivity() {
-
-    /** Whether the activity is currently a picture-in-picture window (#33). */
-    private val inPipMode = mutableStateOf(false)
-
-    /** Set while leaving the app should leave a window behind. */
-    private var pipOffered = false
-
-    private val pipSupported: Boolean by lazy {
-        packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,10 +45,10 @@ class MainActivity : ComponentActivity() {
                 val configuredAtLaunch = remember { File(runtime.runtimeDir, ".configured").isFile }
                 // First run drops the user straight into setup.
                 var showSetup by remember { mutableStateOf(!configuredAtLaunch) }
+                var showTerminal by remember { mutableStateOf(false) }
                 val notificationPermission =
                     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
                 val runner by RunnerStatus.snapshot.collectAsState()
-                val inPip by inPipMode
 
                 fun startRunner() {
                     if (Build.VERSION.SDK_INT >= 33) {
@@ -78,17 +66,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Keep the system's idea of whether to shrink this activity in
-                // step with what is actually on screen.
-                LaunchedEffect(showSetup, runner.state) {
-                    offerPip(shouldOfferPip(pipSupported, showSetup, runner.state))
+                BackHandler(enabled = showSetup || showTerminal) {
+                    if (showTerminal) showTerminal = false else showSetup = false
                 }
 
-                BackHandler(enabled = showSetup) { showSetup = false }
-
-                if (inPip) {
-                    PipScreen(monitor = monitor)
-                } else if (showSetup) {
+                if (showSetup) {
                     SetupScreen(
                         capabilities = capabilities,
                         runtime = runtime,
@@ -99,12 +81,21 @@ class MainActivity : ComponentActivity() {
                         // has already run, so bring it up here (issue #46).
                         onStartRunner = { startRunner() },
                     )
+                } else if (showTerminal) {
+                    TerminalScreen(
+                        runtime = runtime,
+                        nativeLibraryDir = applicationInfo.nativeLibraryDir,
+                        cacheDir = cacheDir,
+                        onBack = { showTerminal = false },
+                    )
                 } else {
                     DashboardScreen(
                         capabilities = capabilities,
                         runtime = runtime,
                         monitor = monitor,
                         onOpenSetup = { showSetup = true },
+                        onOpenTerminal = { showTerminal = true },
+                        onToggleFloating = { toggleFloatingWindow() },
                         onStartRunner = { startRunner() },
                         onStopRunner = {
                             startService(Intent(this, RunnerService::class.java).setAction(RunnerService.ACTION_STOP))
@@ -115,36 +106,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * On API 31+ the system enters picture-in-picture on its own when the user
-     * leaves; below that the activity has to ask, and [onUserLeaveHint] is the
-     * only moment it may.
-     */
-    private fun offerPip(offered: Boolean) {
-        pipOffered = offered
-        if (!pipSupported || Build.VERSION.SDK_INT < 31) return
-        runCatching { setPictureInPictureParams(pipParams(autoEnter = offered)) }
+    private fun toggleFloatingWindow() {
+        if (!Settings.canDrawOverlays(this)) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivity(intent)
+            return
+        }
+        if (FloatingOverlayService.isShowing) {
+            stopService(Intent(this, FloatingOverlayService::class.java))
+        } else {
+            startService(Intent(this, FloatingOverlayService::class.java))
+        }
     }
-
-    private fun pipParams(autoEnter: Boolean): PictureInPictureParams =
-        PictureInPictureParams.Builder()
-            // The system rejects anything outside 1:2.39..2.39:1, and the
-            // compact layout is written for a landscape strip.
-            .setAspectRatio(Rational(16, 9))
-            .apply { if (Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(autoEnter) }
-            .build()
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= 31 || !pipOffered) return
-        runCatching { enterPictureInPictureMode(pipParams(autoEnter = false)) }
-    }
-
-    override fun onPictureInPictureModeChanged(
-        isInPictureInPictureMode: Boolean,
-        newConfig: Configuration,
-    ) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        inPipMode.value = isInPictureInPictureMode
+        if (Settings.canDrawOverlays(this) &&
+            RunnerStatus.snapshot.value.state != RunnerState.STOPPED
+        ) {
+            runCatching { startService(Intent(this, FloatingOverlayService::class.java)) }
+        }
     }
 }

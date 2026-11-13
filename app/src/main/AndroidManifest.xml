@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -43,7 +44,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:supportsPictureInPicture="true"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode">
             <intent-filter>
@@ -99,6 +99,10 @@
             android:name=".qnn.QnnService"
             android:exported="false"
             android:process=":qnn" />
+
+        <service
+            android:name=".ui.FloatingOverlayService"
+            android:exported="false" />
 
         <service
             android:name=".runner.RunnerService"
