@@ -160,6 +160,8 @@ fun TerminalScreen(
     }
     var input by remember { mutableStateOf(TextFieldValue("")) }
     var status by remember { mutableStateOf("Starting shell…") }
+    // Incrementing this key creates a fresh Process after Stop shell.
+    var sessionGeneration by remember { mutableStateOf(0) }
     var fontSize by remember {
         mutableStateOf(historyPrefs.getFloat(TERMINAL_FONT_SIZE_KEY, 14f).coerceIn(10f, 24f))
     }
@@ -171,7 +173,7 @@ fun TerminalScreen(
     val outputBackground = if (lightTheme) Color.White else Color(0xFF080B0E)
     val outputText = if (lightTheme) Color(0xFF18212B) else TerminalText
     val commandText = if (lightTheme) Color(0xFF087A24) else TerminalInput
-    val session = remember(runtime) {
+    val session = remember(runtime, sessionGeneration) {
         TerminalSession(runtime, nativeLibraryDir, cacheDir, appendLine)
     }
 
@@ -293,11 +295,18 @@ fun TerminalScreen(
             }) { Text("Run") }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                session.stop()
-                status = "Stopped"
-                appendLine("[terminal stopped]")
-            }) { Text("Stop shell") }
+            if (status == "Stopped" || status.startsWith("Unable to start")) {
+                Button(onClick = {
+                    status = "Starting shell…"
+                    sessionGeneration += 1
+                }) { Text("Start Shell") }
+            } else {
+                OutlinedButton(onClick = {
+                    session.stop()
+                    status = "Stopped"
+                    appendLine("[terminal stopped]")
+                }) { Text("Stop shell") }
+            }
         }
     }
 }
