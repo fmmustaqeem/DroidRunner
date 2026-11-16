@@ -1,3 +1,9 @@
+# FM-owned fork context
+
+This repository is the FM-maintained fork at https://github.com/fmmustaqeem/DroidRunner. The upstream project is https://github.com/m96-chan/DroidRunner; upstream authorship, issues, and releases remain distinct. FM-specific changes and device testing should be recorded in this fork's commits and pull requests. Do not describe an FM fork build as an official upstream release. The app is a self-hosted Android GitHub Actions runner, so register it only to the intended repository and treat workflow code as code executing on the device.
+
+---
+
 # DroidRunner
 
 **Turn your sleeping Android devices into real-hardware GitHub Actions runners.**
