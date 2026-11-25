@@ -103,6 +103,16 @@ class RunnerCommandTest {
         assertTrue(invocation().command().contains("--kill-on-exit"))
     }
 
+    @Test fun hardLinksAreEmulatedForAndroidFilesystems() {
+        // Android-backed filesystems may deny native hard-link creation inside
+        // PRoot. -l activates the bundled link2symlink extension so package
+        // managers such as dpkg can create their status-file backups.
+        assertTrue(
+            "dpkg status-old backup needs PRoot hard-link emulation",
+            invocation().command().contains("-l"),
+        )
+    }
+
     @Test fun theRunnerVariablesAreAssignedForTheGuestCommand() {
         // These reach run.sh as assignments to the guest's own /usr/bin/env,
         // which is why the guest sees a sane HOME, PATH and TMPDIR at all — the
@@ -139,7 +149,7 @@ class RunnerCommandTest {
         // instead, which ignores it — the mount or the uid is then simply gone.
         val command = invocation(listOf("/home/runner/config.sh", "--unattended")).command()
         val env = command.indexOf("/usr/bin/env")
-        listOf("--kill-on-exit", "-0", "-r", "-b", "-w").forEach {
+        listOf("--kill-on-exit", "-l", "-0", "-r", "-b", "-w").forEach {
             assertTrue("$it is a proot option", command.indexOf(it) in 0 until env)
         }
         assertEquals(
@@ -157,7 +167,7 @@ class RunnerCommandTest {
         assertEquals(
             listOf(
                 "$nativeDir/libproot.so",
-                "--kill-on-exit", "-0",
+                "--kill-on-exit", "-l", "-0",
                 "-r", "${runtimeDir.absolutePath}/rootfs",
                 "-b", "/dev", "-b", "/proc", "-b", "/sys",
                 "-b", "${runtimeDir.absolutePath}/home:/home",
