@@ -54,7 +54,6 @@ private val TerminalInput = Color(0xFF39FF14)
 private val TerminalGreen = Color(0xFF75D69C)
 private const val TERMINAL_HISTORY_PREFS = "fm_droid_terminal_history"
 private const val TERMINAL_HISTORY_KEY = "output_lines"
-private const val TERMINAL_FONT_SIZE_KEY = "font_size_sp"
 private const val TERMINAL_LIGHT_THEME_KEY = "light_theme"
 private const val TERMINAL_HISTORY_LIMIT = 1200
 
@@ -160,9 +159,6 @@ fun TerminalScreen(
     }
     var input by remember { mutableStateOf(TextFieldValue("")) }
     var status by remember { mutableStateOf("Starting shell…") }
-    var fontSize by remember {
-        mutableStateOf(historyPrefs.getFloat(TERMINAL_FONT_SIZE_KEY, 14f).coerceIn(10f, 24f))
-    }
     var lightTheme by remember { mutableStateOf(historyPrefs.getBoolean(TERMINAL_LIGHT_THEME_KEY, false)) }
     val scroll = rememberScrollState()
     val keyboard = LocalSoftwareKeyboardController.current
@@ -190,9 +186,6 @@ fun TerminalScreen(
         historyPrefs.edit()
             .putString(TERMINAL_HISTORY_KEY, history.takeLast(TERMINAL_HISTORY_LIMIT).joinToString("\n"))
             .apply()
-    }
-    LaunchedEffect(fontSize) {
-        historyPrefs.edit().putFloat(TERMINAL_FONT_SIZE_KEY, fontSize).apply()
     }
     LaunchedEffect(lightTheme) {
         historyPrefs.edit().putBoolean(TERMINAL_LIGHT_THEME_KEY, lightTheme).apply()
@@ -238,10 +231,6 @@ fun TerminalScreen(
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(onClick = { fontSize = (fontSize - 1f).coerceAtLeast(10f) }) { Text("A−") }
-            Text("Font ${fontSize.toInt()}sp", color = if (lightTheme) Color.DarkGray else TerminalText)
-            OutlinedButton(onClick = { fontSize = (fontSize + 1f).coerceAtMost(24f) }) { Text("A+") }
-        }
         SelectionContainer {
             Column(
                 Modifier.weight(1f).fillMaxWidth().background(outputBackground)
@@ -253,19 +242,19 @@ fun TerminalScreen(
                         line,
                         color = lineColor,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = fontSize.sp,
+                        fontSize = 10.sp,
                     )
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
                 textStyle = TextStyle(
                     color = commandText,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = fontSize.sp,
+                    fontSize = 10.sp,
                 ),
                 modifier = Modifier.weight(1f),
                 singleLine = true,
