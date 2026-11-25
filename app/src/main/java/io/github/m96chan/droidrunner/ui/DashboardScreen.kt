@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
@@ -61,7 +62,7 @@ fun DashboardScreen(
             .background(BtopColors.Background)
             .safeDrawingPadding()
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Header(capabilities, runner, onOpenSetup, onOpenTerminal)
         // Primary controls stay above the scrollable dashboard content.
@@ -90,7 +91,7 @@ fun DashboardScreen(
         PowerNetPanel(system)
         // Claims the space the monitors leave, so the log grows with the
         // screen instead of stranding an empty gap below the panel.
-        RunnerPanel(runner, runtime, onStartRunner, onStopRunner, Modifier.weight(1f))
+        RunnerPanel(runner, runtime, onStartRunner, onStopRunner, Modifier.weight(1f).heightIn(min = 120.dp))
     }
 }
 
@@ -126,7 +127,7 @@ private fun Header(capabilities: DeviceCapabilities, runner: RunnerSnapshot, onO
 @Composable
 private fun CpuPanel(system: SystemSnapshot) {
     Panel("cpu") {
-        HistoryGraph(system.cpuHistory, color = BtopColors.Cyan)
+        HistoryGraph(system.cpuHistory, height = 30.dp, color = BtopColors.Cyan)
         Spacer(Modifier.padding(top = 8.dp))
         // `--`, not `0%`, when no core could be measured. The cores below
         // already say so individually; the average said the CPU was idle,
@@ -184,7 +185,7 @@ private fun CpuPanel(system: SystemSnapshot) {
 @Composable
 private fun MemPanel(system: SystemSnapshot, modifier: Modifier = Modifier) {
     Panel("mem", modifier) {
-        HistoryGraph(system.memHistory, height = 36.dp, color = BtopColors.Magenta)
+        HistoryGraph(system.memHistory, height = 24.dp, color = BtopColors.Magenta)
         Spacer(Modifier.padding(top = 6.dp))
         Meter("", system.memFraction)
         Text(
