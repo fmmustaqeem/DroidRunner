@@ -645,7 +645,13 @@ This fork currently configures `droidrunner.runtimeRepo=m96-chan/DroidRunner` an
 
 The runtime tarball is **not stored in this source repository and is not embedded in the APK**. A source/APK ZIP therefore does not contain the Ubuntu rootfs or the official Actions Runner. If a portable package is prepared, the runtime archive, manifest, and detached signature must be included as separate files only after they have been downloaded from the configured release and independently verified. Do not substitute an empty placeholder or describe the runtime as bundled when those files are absent.
 
-For this review, the runtime source and verification configuration were confirmed, but the approximately 200 MB runtime asset could not be fetched into the working session because outbound download/DNS access failed. It has **not** been added to a ZIP or mirrored into this fork. No Actions workflow was run.
+The upstream `runtime-0.3.0` release metadata currently lists these assets:
+
+- [ARM64 runtime archive](https://github.com/m96-chan/DroidRunner/releases/download/runtime-0.3.0/droidrunner-runtime-arm64.tar.gz) — 208,439,529 bytes; GitHub asset SHA-256: `201458986925e259a4c0e9e745c891fc726dd052768100b2f135f2422403a4b1`.
+- [Runtime manifest](https://github.com/m96-chan/DroidRunner/releases/download/runtime-0.3.0/runtime-manifest.json) — 260 bytes; GitHub asset SHA-256: `90b91667903ba13db6b1e5212db18bc46ac0a2a8d6b373add04fb7b6ea35de95`.
+- [Detached manifest signature](https://github.com/m96-chan/DroidRunner/releases/download/runtime-0.3.0/runtime-manifest.json.sig) — 96 bytes; GitHub asset SHA-256: `7f101ab8e353361ed211152edf9402ccc8b6d12ecaf9c30347a20af7902f51e2`.
+
+These are GitHub release metadata digests, not locally recomputed checksums. The binary and companion files could not be downloaded into this working session because the release asset fetch is blocked. They have **not** been added to a ZIP or mirrored into this fork. No Actions workflow was run.
 
 ## NPU Device Agent
 
