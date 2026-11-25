@@ -840,3 +840,13 @@ The same UI branch also rebalances the dashboard for short phone screens:
 - Runner panel keeps a 120dp minimum height while taking the remaining dashboard space; its log area remains vertically scrollable and follows the newest log lines.
 
 This is source-only and still requires an APK build plus on-device verification. No Actions run or phone installation was performed.
+
+
+### Dashboard visibility refinement (2026-11-25)
+
+A follow-up layout refinement keeps the live Runner panel visible on shorter phone screens:
+
+- CPU, memory, disk and power/network panels now share an independently scrollable metrics area.
+- The live Runner panel remains outside that scroll area and receives the larger share of the remaining dashboard height, with a 160dp minimum.
+- CPU history graph is 22dp high and memory history graph is 18dp high.
+- This is intended to prevent metric panels from pushing the active runner status and log below the visible screen. It still requires an APK build and device verification.
