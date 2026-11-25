@@ -639,6 +639,14 @@ A build with no key configured cannot verify anything and says so during install
 than pretending otherwise; a build that *does* carry a key refuses an unsigned or
 wrongly signed manifest.
 
+### FM fork runtime packaging note (2026-11-25)
+
+This fork currently configures `droidrunner.runtimeRepo=m96-chan/DroidRunner` and includes the public ECDSA key used to verify that repository's signed runtime manifests. During first-time setup, the app discovers a `runtime-*` release from that repository and downloads the ARM64 bundle only after the manifest signature and archive SHA-256 checks succeed.
+
+The runtime tarball is **not stored in this source repository and is not embedded in the APK**. A source/APK ZIP therefore does not contain the Ubuntu rootfs or the official Actions Runner. If a portable package is prepared, the runtime archive, manifest, and detached signature must be included as separate files only after they have been downloaded from the configured release and independently verified. Do not substitute an empty placeholder or describe the runtime as bundled when those files are absent.
+
+For this review, the runtime source and verification configuration were confirmed, but the approximately 200 MB runtime asset could not be fetched into the working session because outbound download/DNS access failed. It has **not** been added to a ZIP or mirrored into this fork. No Actions workflow was run.
+
 ## NPU Device Agent
 
 A Linux process inside PRoot cannot call Android's NNAPI or vendor Java APIs directly.
