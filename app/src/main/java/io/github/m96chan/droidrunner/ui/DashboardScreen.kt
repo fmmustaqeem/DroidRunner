@@ -89,7 +89,7 @@ fun DashboardScreen(
         Column(
             Modifier
                 .fillMaxWidth()
-                .weight(0.75f)
+                .weight(0.5f)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -102,7 +102,7 @@ fun DashboardScreen(
         }
         RunnerPanel(
             runner, runtime, onStartRunner, onStopRunner,
-            Modifier.weight(1.25f).heightIn(min = 160.dp),
+            Modifier.weight(1.5f).heightIn(min = 160.dp),
         )
     }
 }
