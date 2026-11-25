@@ -969,3 +969,16 @@ Following approval, the focused candidate change has been committed on the separ
 - The code branch is exactly two commits ahead of `main`, with changes limited to those two files. No merge or update to `main` has occurred.
 
 **Validation status:** the two branch files were fetched again from GitHub and the expected launch flag and test assertions were verified in their contents. No Gradle/unit test, APK build, GitHub Actions run, APK installation, or on-device dpkg test has been performed. This remains an unverified candidate fix until the rebuilt app is explicitly approved, installed, and tested on the affected Android device. The README documentation branch itself remains separate from the code branch.
+
+
+### Existing APK artifact inspection and local-build feasibility (25 November 2026)
+
+The latest available workflow artifact previously retrieved from run #15 (`app-debug`, based on `main` commit `86d94d7f189c4d8ae1ea10e66229808625ab9a84`) was inspected as an archive:
+
+- The ZIP contains only `app-debug.apk`; it is not a source-code archive.
+- APK native-library inspection confirms the bundled `libproot.so` contains the `link2symlink` extension and its `--link2symlink` option. This confirms the extension is bundled in that APK, but does not mean the option was active at runtime.
+- The artifact predates the separate code-branch change and therefore is not a test build of `fix/dpkg-proot-link2symlink`. It must not be used to claim the candidate fix is present.
+- The repository includes `gradlew` and pins Gradle 9.7.1. The Android build configuration requires Android SDK platform 35, Android NDK, and CMake/native compilation for the PRoot libraries. The inspected local environment had Java 21 but no Gradle installation, Android SDK, NDK, or local source checkout.
+- Consequently, a local test/APK build has not yet been possible in the available environment. No GitHub Actions were started, and no device or package database was changed.
+
+**Next gate:** obtain a usable local Android SDK + NDK + CMake toolchain and source checkout without using GitHub Actions; then run the unit tests and build the candidate APK. Installation and the on-device dpkg test remain separate approval gates.
