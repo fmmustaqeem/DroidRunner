@@ -50,7 +50,7 @@ fun Panel(
                 .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier)
                 .border(1.dp, BtopColors.Border, RoundedCornerShape(6.dp))
                 .background(BtopColors.Panel, RoundedCornerShape(6.dp))
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             content = content,
         )
         Text(
