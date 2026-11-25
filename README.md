@@ -825,3 +825,64 @@ links to it, points at `PACKAGES.txt` and `SOURCE-OFFER.txt` for the rootfs,
 and says plainly when a development build has no release behind it.
 `tools/check-licence-tables-match.sh` fails the build if a component in this
 table is missing from that screen.
+
+
+---
+
+## Ubuntu PRoot package-management investigation (25 November 2026)
+
+This is an FM device-investigation log, **not a claim that the issue is fixed**.
+
+### Observed environment and failure
+
+- Test device: ZTE Z2352N, Android 13, ARM64; reported kernel: `5.4.276-android12-...`.
+- Guest: Ubuntu 24.04.3 LTS ARM64 inside DroidRunner's PRoot rootfs (not native Termux).
+- Repeated error, including on 25 November when `dpkg --configure -a` was attempted:
+
+  ```text
+  dpkg: error: error creating new backup file '/var/lib/dpkg/status-old': Permission denied
+  ```
+
+- Earlier diagnostics found UID 0 inside PRoot, a read-write rootfs, free disk space and a writable `/var/lib/dpkg` directory. Hard-link creation failed in the tested locations while a symlink test succeeded. This points away from ordinary disk exhaustion, but does not by itself identify the exact kernel/PRoot denial.
+- `dpkg --audit` once returned no output, while `apt-get check` still reported interrupted package configuration. Earlier diagnostics observed dpkg state files including `status-old`, `status-new` and entries under `/var/lib/dpkg/updates/`.
+- Later package/binary checks did not find Python, pip3, FFmpeg or eSpeak NG. A previous large apt transaction was not confirmed complete; do not assume those packages were installed.
+- Repeating generic `dpkg --configure -a`, broad apt installs or permission changes is not an established repair.
+
+### DroidRunner / PRoot source findings
+
+- The Android-patched PRoot is shipped inside the APK. The investigated pinned PRoot revision is `7266fb3e8516535682f5a9c8f3a7e70f6506eddb`.
+- That source contains the `link2symlink` extension and registers `--link2symlink` / `-l`, intended to emulate hard links with symbolic links where native hard links are denied.
+- The extension handles `link()`, `linkat()` and associated unlink operations. The pinned source already contains the seccomp correction associated with an earlier dpkg hard-link emulation failure.
+- DroidRunner's `RunnerCommand.kt` currently does **not** pass `-l` / `--link2symlink`. `RunnerCommandTest.kt` asserts the complete command line, so a future launch-argument change must update that test.
+- `PROOT_L2S_DIR` is optional and changes where emulated-link backing files are stored. No evidence currently shows it is needed; do not configure it by default.
+- Runtime packaging documentation says hard links are dereferenced because the in-app extractor creates files, directories and symlinks only. This archive-extraction limitation is separate and does **not** prove the runtime PRoot failure.
+
+### External reproduction and upstream changes
+
+- Termux PRoot [issue #54](https://github.com/termux/proot/issues/54) reports the same `/var/lib/dpkg/status-old: Permission denied` message. Its reporter says `--link2symlink` made the dpkg error disappear. This strongly supports testing `-l`, but is not a reproduction on this DroidRunner device.
+- PRoot [commit `6b2b7ccc9e4d06593a9e3785cd16021cf917b34`](https://github.com/termux/proot/commit/6b2b7ccc9e4d06593a9e3785cd16021cf917b34) added seccomp handling for link2symlink; it is already present in the pinned source. The historical report concerns a related dpkg backup problem but a different error variant (`File exists`), not this device's `Permission denied`.
+- Later upstream link2symlink changes reviewed:
+  - [`032f82d579`](https://github.com/termux/proot/commit/032f82d579): correct emulated link-count handling after the kernel removes a name.
+  - [`87c4109a52`](https://github.com/termux/proot/commit/87c4109a52): leave broken emulated hard links to the kernel rather than mishandling them.
+  - [`bffb58da8b`](https://github.com/termux/proot/commit/bffb58da8b): improve reporting when emulated hard-link creation fails.
+  - Other later commits refine rename/unlink lifecycle, link-following, directory-entry type reporting and performance. The pinned revision predates these improvements.
+- The upstream branch inspected was 114 commits ahead of the pinned revision. A wholesale upgrade is not justified by this single failure; any backport needs a dependency and scope review.
+
+### Current assessment and safe validation plan
+
+**Leading hypothesis:** native hard-link creation is being denied in this Android/PRoot environment, and enabling PRoot's `-l` emulation may let dpkg create `status-old`.
+
+**Not yet verified:** whether `-l` fixes this exact error on Android 13 / kernel 5.4 on the ZTE device, and whether the pinned extension is robust enough without selected later fixes.
+
+1. Prepare a narrow PRoot launch change enabling `-l`, plus the matching `RunnerCommandTest.kt` assertion update.
+2. Finish dependency review of later link2symlink fixes; do not blindly cherry-pick or upgrade all upstream commits.
+3. Build/test locally where feasible; do not use GitHub Actions for this investigation.
+4. On-device, first test emulated hard links in an isolated temporary directory and inspect the resulting files.
+5. Only after that passes and dpkg state is backed up, seek approval before package-database recovery. Do not begin with a broad apt install.
+
+### Change and test status
+
+- Investigation and documentation only at the time of writing.
+- No PRoot launch argument, source patch, runtime bundle, APK or device configuration has been changed by this investigation.
+- No GitHub Actions workflow was run.
+- The `-l` change remains a candidate, pending dependency-aware patch planning and explicit implementation approval.
