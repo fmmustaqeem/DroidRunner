@@ -850,3 +850,6 @@ A follow-up layout refinement keeps the live Runner panel visible on shorter pho
 - The live Runner panel remains outside that scroll area and receives the larger share of the remaining dashboard height, with a 160dp minimum.
 - CPU history graph is 22dp high and memory history graph is 18dp high.
 - This is intended to prevent metric panels from pushing the active runner status and log below the visible screen. It still requires an APK build and device verification.
+
+
+The runner log auto-scroll effect is keyed by both the log count and newest line, so it continues following fresh output even when a bounded log buffer replaces its oldest line without changing its size.
