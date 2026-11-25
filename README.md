@@ -829,3 +829,14 @@ The `fix/terminal-input-visible-font-10` branch updates the FM Droid terminal UI
 - Leaves the existing Copy all, Paste, Clear screen, theme toggle, Run, and Stop shell actions in place.
 
 This is a source change only. It has not been built into an APK or verified on the ZTE device; no GitHub Actions run or installation was performed.
+
+
+### Dashboard CPU / runner panel sizing (2026-11-25)
+
+The same UI branch also rebalances the dashboard for short phone screens:
+
+- CPU history graph height reduced to 30dp; memory history graph reduced to 24dp.
+- Dashboard vertical gaps reduced from 8dp to 6dp and panel vertical padding reduced from 12dp to 8dp.
+- Runner panel keeps a 120dp minimum height while taking the remaining dashboard space; its log area remains vertically scrollable and follows the newest log lines.
+
+This is source-only and still requires an APK build plus on-device verification. No Actions run or phone installation was performed.
