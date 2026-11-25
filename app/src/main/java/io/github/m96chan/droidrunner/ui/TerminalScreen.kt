@@ -230,7 +230,6 @@ fun TerminalScreen(
                 Text(if (lightTheme) "Dark" else "Light")
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         SelectionContainer {
             Column(
                 Modifier.weight(1f).fillMaxWidth().background(outputBackground)
