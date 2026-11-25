@@ -942,3 +942,19 @@ The actual DroidRunner `runtime/build-proot.sh` was inspected alongside the pinn
 - This narrows the scope: do not treat the USERLAND-only fake_id0 metadata rename changes (`66b112ed38`, `4a27ca61ff`) as mandatory for DroidRunner's current configuration. The ordinary fake_id0 `HOST_PATH` permission override remains compiled and active, so the permission interaction discussed in `032f82d579` still deserves review.
 
 This is a source/build-flag conclusion, not a runtime binary inspection. It should be confirmed against the exact APK's build provenance before release. No build was run and no APK was changed.
+
+
+### DroidRunner launch-command finding: link2symlink is not enabled (25 November 2026)
+
+The current `main` branch launch code was inspected:
+
+- `app/src/main/java/io/github/m96chan/droidrunner/runner/RunnerCommand.kt` builds the PRoot argument list with `--kill-on-exit`, `-0`, rootfs and bind mounts, then `/usr/bin/env`. It does **not** pass `-l` or `--link2symlink`.
+- The pinned PRoot source registers `-l` / `--link2symlink` and describes it as emulating hard links with symbolic links when SELinux/platform policy prevents real hard links.
+- `app/src/test/java/io/github/m96chan/droidrunner/runner/RunnerCommandTest.kt` asserts the complete PRoot argument list exactly, so any approved launch-option change must update the relevant characterization test and its full expected list.
+- The actual build does compile `extension/link2symlink/link2symlink.o`; the extension is present in the binary, but the current launch command does not activate it.
+
+**Most focused candidate fix (not applied):** add `-l` to the PRoot options in `RunnerCommand.prootCommand()`, before `/usr/bin/env`, and update `RunnerCommandTest`. This directly addresses the observed hard-link creation failure without changing dpkg, rootfs permissions, package lists, or the Android filesystem.
+
+**Evidence level:** strong candidate, not confirmed on this phone. The exact `dpkg status-old: Permission denied` symptom has an upstream Termux PRoot precedent where `--link2symlink` resolves the error, but the DroidRunner pinned build and Android 13 device still need an on-device reproduction/test after an approved APK rebuild. Do not describe this as fixed until `dpkg` backup/link operations and `apt-get check` pass on-device.
+
+No source or test file was changed; no APK was built; no GitHub Actions were run.
