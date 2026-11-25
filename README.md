@@ -853,3 +853,5 @@ A follow-up layout refinement keeps the live Runner panel visible on shorter pho
 
 
 The runner log auto-scroll effect is keyed by both the log count and newest line, so it continues following fresh output even when a bounded log buffer replaces its oldest line without changing its size.
+
+A further sizing adjustment gives the live Runner panel a 1.5 weight and the independently scrollable metrics area a 0.5 weight (previously 1.25 and 0.75). The Runner panel keeps its 160dp minimum height. This is a layout allocation change only; the final appearance must be confirmed on the target ZTE screen after an APK build.
