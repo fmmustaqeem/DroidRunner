@@ -328,7 +328,9 @@ private fun RunnerPanel(
         Spacer(Modifier.padding(top = 6.dp))
         val logScroll = rememberScrollState()
         // Newest lines stay in view as the runner talks.
-        LaunchedEffect(runner.recentLog.size) { logScroll.animateScrollTo(logScroll.maxValue) }
+        LaunchedEffect(runner.recentLog.size, runner.recentLog.lastOrNull()) {
+            logScroll.animateScrollTo(logScroll.maxValue)
+        }
         Column(
             Modifier
                 .fillMaxWidth()
