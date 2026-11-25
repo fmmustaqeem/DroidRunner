@@ -75,7 +75,7 @@ object RunnerCommand {
         val builder = ProcessBuilder(
             listOf(
                 "$nativeDir/libproot.so",
-                "--kill-on-exit", "-0",
+                "--kill-on-exit", "-l", "-0",
                 "-r", File(dir, "rootfs").absolutePath,
                 "-b", "/dev", "-b", "/proc", "-b", "/sys",
                 "-b", "${File(dir, "home").absolutePath}:/home",
