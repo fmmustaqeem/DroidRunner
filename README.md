@@ -913,3 +913,20 @@ A direct GitHub compare was made between DroidRunner's pinned PRoot revision (`7
 - The 37-commit range also contains related `fake_id0` changes, including permission/ownership records and rename handling. Consequently, even the four-commit link2symlink sequence is **not yet proven safe to transplant alone** into the pinned runtime.
 
 **Revised conclusion:** do not add only `-l`, and do not cherry-pick only the four named commits. Before choosing a patch, map the relevant `fake_id0` / syscall / seccomp dependencies and run the PRoot link2symlink regression suite against the exact Android build configuration. If a minimal backport cannot be demonstrated, evaluate a controlled update to a known upstream revision rather than a hand-assembled patch. No code changes have been made.
+
+
+### Follow-up: adjacent link2symlink and fake_id0 changes (25 November 2026)
+
+The 37-commit ancestry was inspected further. These are **review dependencies / regression areas**, not yet a proven minimal backport set:
+
+- `8f467b0991` and `a396094c7c` both modify `link2symlink.c` and its path/descriptor tracking. They precede the later unlink/rename lifecycle fixes, so applying only the final diff to the older pinned file may require resolving changed structures and callback context.
+- `7f2fab0fb3` adds a `USERLAND` chained-exit path so link2symlink can correct the link count reported by fake_id0's emulated `fstat(2)`. This is relevant to link-count consistency when fstat is routed through fake_id0; whether the DroidRunner build enables that path and whether dpkg's failing operation reaches it still need verification.
+- `66b112ed38` adds `renameat2(2)` ownership-record handling to fake_id0.
+- `4a27ca61ff` changes fake_id0 rename handling so metadata records are moved at syscall exit, after the kernel has actually renamed the file. This avoids moving records when rename fails and handles `RENAME_EXCHANGE`/related cases. It is a relevant regression area for package-manager operations, but is not proven to cause the observed `status-old` error.
+- `53b2159cda` and `e8a6c0ebe0` adjust fake_id0 metadata path handling and orphan cleanup. These are adjacent fake_id0 correctness changes, not established hard-link prerequisites.
+
+The exact ancestry of the three commits after `032f82d579` was confirmed:
+`032f82d579` → `bd16a7d6b7` → `bffb58da8b` → `87c4109a52`.
+Their combined diff touches the same `link2symlink.c` helpers. The first guards untranslated paths, the second fixes negative-errno propagation (including the EACCES retry), and the third hardens broken-chain handling. They should be reviewed and tested as a sequence.
+
+**Next verification required before any patch recommendation:** inspect DroidRunner's actual build flags to establish whether `USERLAND` / fake_id0 chained fstat is compiled; map the fake_id0 rename callback order against link2symlink's post-syscall decrement; then run the upstream link2symlink regression scripts and a dpkg reproduction on the exact ARM64 Android/PRoot build. No source, APK, device, package database, or Actions workflow has been changed.
