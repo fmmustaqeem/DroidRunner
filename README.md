@@ -886,3 +886,15 @@ This is an FM device-investigation log, **not a claim that the issue is fixed**.
 - No PRoot launch argument, source patch, runtime bundle, APK or device configuration has been changed by this investigation.
 - No GitHub Actions workflow was run.
 - The `-l` change remains a candidate, pending dependency-aware patch planning and explicit implementation approval.
+
+
+### Follow-up: upstream fix dependency review (25 November 2026)
+
+The exact upstream diffs were inspected, not just their commit titles.
+
+- **`032f82d579` is a correctness fix, not merely an optimization.** The old implementation decremented the emulated hard-link count before the kernel had successfully completed `unlink()` / `rename()`. A failed syscall could leave the count too low; a later unlink could delete the backing data while another link name still existed. Renaming one emulated link onto another link to the same file could also incorrectly remove a name instead of behaving as the POSIX no-op. The fix remembers the candidate name at syscall entry and decrements only after the syscall has actually removed/replaced it; it also handles `RENAME_NOREPLACE` and `RENAME_EXCHANGE`.
+- **`87c4109a52` addresses broken emulated-link chains.** With the default (unset) `PROOT_L2S_DIR`, backing files may live beside the first link. Removing that directory can leave another link dangling. The old stat emulation could then fail `lstat()`, making the dangling entry difficult to list or remove with tools including `dpkg`, BusyBox `ls`/`rm`, and Python `os.lstat()`. The upstream fix leaves the kernel's dangling-symlink result intact and avoids treating arbitrary user files as PRoot link-count backing files.
+- **`bffb58da8b` corrects error propagation.** Earlier host syscall failures could be returned as raw `-1` and appear inside the guest as `EPERM`, hiding the real `EACCES` / `ENOENT` reason. This matters to the permission-retry logic around removal of emulated links: the code must test the returned negative errno (`-EACCES`), not a stale host `errno`.
+- These changes touch overlapping helpers in the same `link2symlink.c`; they should not be treated as independent cherry-picks. In particular, `032f82d` changes removal to an after-syscall operation and introduces the `-EACCES` path that `bffb58d` later makes reliable. `87c4109` hardens broken-chain handling using the intermediate-link helpers. The safe backport unit must be derived from the actual parent history and tested as a coherent sequence, not assembled by copying isolated hunks.
+- **Practical conclusion:** do not ship `-l` alone on the current pinned revision. First establish a minimal coherent backport set (at least the removal-lifecycle correction and dependent error/broken-chain handling), then run the upstream link2symlink regression tests plus a dpkg-specific test. The exact minimum set is still under review; no patch has been applied.
+
