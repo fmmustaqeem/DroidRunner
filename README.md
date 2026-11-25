@@ -898,3 +898,18 @@ The exact upstream diffs were inspected, not just their commit titles.
 - These changes touch overlapping helpers in the same `link2symlink.c`; they should not be treated as independent cherry-picks. In particular, `032f82d` changes removal to an after-syscall operation and introduces the `-EACCES` path that `bffb58d` later makes reliable. `87c4109` hardens broken-chain handling using the intermediate-link helpers. The safe backport unit must be derived from the actual parent history and tested as a coherent sequence, not assembled by copying isolated hunks.
 - **Practical conclusion:** do not ship `-l` alone on the current pinned revision. First establish a minimal coherent backport set (at least the removal-lifecycle correction and dependent error/broken-chain handling), then run the upstream link2symlink regression tests plus a dpkg-specific test. The exact minimum set is still under review; no patch has been applied.
 
+
+
+### Follow-up: commit ancestry and backport scope (25 November 2026)
+
+A direct GitHub compare was made between DroidRunner's pinned PRoot revision (`7266fb3e8516535682f5a9c8f3a7e70f6506eddb`) and upstream `032f82d579`.
+
+- The commits are on the same ancestry line: the comparison reports **37 commits ahead, 0 behind**.
+- Those 37 commits are not limited to `link2symlink.c`. The changed files include core syscall entry/exit and translation, seccomp, tracee event/register handling, `fake_id0` ownership/permission emulation, and link2symlink tests.
+- The four relevant link2symlink commits form a consecutive sequence after `032f82d579`: `bd16a7d6b7` (ignore syscalls whose path translation failed), `bffb58da8b` (return proper negative errno values), then `87c4109a52` (leave broken emulated links to the kernel). GitHub compare confirms three commits from `032f82d579` to `87c4109a52`, with no divergence.
+- `bd16a7d6b7` is a safety guard: when PRoot path translation fails, the extension must not interpret untranslated guest pointers as host paths and accidentally move/replace a host file outside the guest rootfs.
+- `bffb58da8b` is required for correct error semantics: host syscall wrappers return `-1` with `errno`, while extension callbacks must return `-errno`. It also changes the permission-retry check to test `status == -EACCES`.
+- `87c4109a52` builds on the intermediate-link parsing refactor and prevents broken chains or user-created lookalike filenames from being treated as valid emulated hard-link backing data.
+- The 37-commit range also contains related `fake_id0` changes, including permission/ownership records and rename handling. Consequently, even the four-commit link2symlink sequence is **not yet proven safe to transplant alone** into the pinned runtime.
+
+**Revised conclusion:** do not add only `-l`, and do not cherry-pick only the four named commits. Before choosing a patch, map the relevant `fake_id0` / syscall / seccomp dependencies and run the PRoot link2symlink regression suite against the exact Android build configuration. If a minimal backport cannot be demonstrated, evaluate a controlled update to a known upstream revision rather than a hand-assembled patch. No code changes have been made.
