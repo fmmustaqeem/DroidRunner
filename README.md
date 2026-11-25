@@ -930,3 +930,15 @@ The exact ancestry of the three commits after `032f82d579` was confirmed:
 Their combined diff touches the same `link2symlink.c` helpers. The first guards untranslated paths, the second fixes negative-errno propagation (including the EACCES retry), and the third hardens broken-chain handling. They should be reviewed and tested as a sequence.
 
 **Next verification required before any patch recommendation:** inspect DroidRunner's actual build flags to establish whether `USERLAND` / fake_id0 chained fstat is compiled; map the fake_id0 rename callback order against link2symlink's post-syscall decrement; then run the upstream link2symlink regression scripts and a dpkg reproduction on the exact ARM64 Android/PRoot build. No source, APK, device, package database, or Actions workflow has been changed.
+
+
+### Build-configuration check: USERLAND-specific paths (25 November 2026)
+
+The actual DroidRunner `runtime/build-proot.sh` was inspected alongside the pinned PRoot `src/GNUmakefile` and `fake_id0.c`.
+
+- The build script passes `CPPFLAGS="-I..."` and `LDFLAGS="-L..."`, then invokes the PRoot makefile with `CC`, `CROSS_COMPILE`, `PROOT_UNBUNDLE_LOADER`, and `HAS_LOADER_32BIT`. It does **not** pass `-DUSERLAND`.
+- The pinned PRoot `src/GNUmakefile` does not define `USERLAND` either.
+- Therefore the `#ifdef USERLAND` blocks are not compiled in this DroidRunner build. In particular, fake_id0's `LINK2SYMLINK_RENAME` / `LINK2SYMLINK_UNLINK` metadata bridge and its `SYSCALL_CHAINED_EXIT` branch are excluded. The USERLAND-only fstat integration added by `7f2fab0fb3` is not an active dependency for this build.
+- This narrows the scope: do not treat the USERLAND-only fake_id0 metadata rename changes (`66b112ed38`, `4a27ca61ff`) as mandatory for DroidRunner's current configuration. The ordinary fake_id0 `HOST_PATH` permission override remains compiled and active, so the permission interaction discussed in `032f82d579` still deserves review.
+
+This is a source/build-flag conclusion, not a runtime binary inspection. It should be confirmed against the exact APK's build provenance before release. No build was run and no APK was changed.
