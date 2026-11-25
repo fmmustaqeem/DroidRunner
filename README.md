@@ -817,3 +817,15 @@ links to it, points at `PACKAGES.txt` and `SOURCE-OFFER.txt` for the rootfs,
 and says plainly when a development build has no release behind it.
 `tools/check-licence-tables-match.sh` fails the build if a component in this
 table is missing from that screen.
+
+
+### Terminal layout and fixed command font (2026-11-25)
+
+The `fix/terminal-input-visible-font-10` branch updates the FM Droid terminal UI:
+
+- Removes the terminal's A− / A+ font-size controls and the displayed adjustable-font row.
+- Fixes terminal output and the Ubuntu command input text to **10sp**; the previous saved font-size preference no longer controls the display.
+- Adds bottom spacing to the command-entry row so it sits slightly higher, while the screen's existing IME and navigation-bar insets keep it clear of the on-screen keyboard and system navigation area.
+- Leaves the existing Copy all, Paste, Clear screen, theme toggle, Run, and Stop shell actions in place.
+
+This is a source change only. It has not been built into an APK or verified on the ZTE device; no GitHub Actions run or installation was performed.
