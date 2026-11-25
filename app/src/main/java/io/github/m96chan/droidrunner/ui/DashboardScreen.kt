@@ -83,15 +83,27 @@ fun DashboardScreen(
                 modifier = Modifier.weight(1f),
             ) { Text("Stop Runner") }
         }
-        CpuPanel(system)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MemPanel(system, Modifier.weight(1f))
-            DiskPanel(system, capabilities, runtime, Modifier.weight(1f))
+        // Keep the runner visible while metrics can scroll independently.
+        // This prevents CPU/memory panels from pushing the live runner log
+        // below the bottom edge on shorter phone displays.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .weight(0.75f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            CpuPanel(system)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MemPanel(system, Modifier.weight(1f))
+                DiskPanel(system, capabilities, runtime, Modifier.weight(1f))
+            }
+            PowerNetPanel(system)
         }
-        PowerNetPanel(system)
-        // Claims the space the monitors leave, so the log grows with the
-        // screen instead of stranding an empty gap below the panel.
-        RunnerPanel(runner, runtime, onStartRunner, onStopRunner, Modifier.weight(1f).heightIn(min = 120.dp))
+        RunnerPanel(
+            runner, runtime, onStartRunner, onStopRunner,
+            Modifier.weight(1.25f).heightIn(min = 160.dp),
+        )
     }
 }
 
@@ -127,7 +139,7 @@ private fun Header(capabilities: DeviceCapabilities, runner: RunnerSnapshot, onO
 @Composable
 private fun CpuPanel(system: SystemSnapshot) {
     Panel("cpu") {
-        HistoryGraph(system.cpuHistory, height = 30.dp, color = BtopColors.Cyan)
+        HistoryGraph(system.cpuHistory, height = 22.dp, color = BtopColors.Cyan)
         Spacer(Modifier.padding(top = 8.dp))
         // `--`, not `0%`, when no core could be measured. The cores below
         // already say so individually; the average said the CPU was idle,
@@ -185,7 +197,7 @@ private fun CpuPanel(system: SystemSnapshot) {
 @Composable
 private fun MemPanel(system: SystemSnapshot, modifier: Modifier = Modifier) {
     Panel("mem", modifier) {
-        HistoryGraph(system.memHistory, height = 24.dp, color = BtopColors.Magenta)
+        HistoryGraph(system.memHistory, height = 18.dp, color = BtopColors.Magenta)
         Spacer(Modifier.padding(top = 6.dp))
         Meter("", system.memFraction)
         Text(
