@@ -958,3 +958,14 @@ The current `main` branch launch code was inspected:
 **Evidence level:** strong candidate, not confirmed on this phone. The exact `dpkg status-old: Permission denied` symptom has an upstream Termux PRoot precedent where `--link2symlink` resolves the error, but the DroidRunner pinned build and Android 13 device still need an on-device reproduction/test after an approved APK rebuild. Do not describe this as fixed until `dpkg` backup/link operations and `apt-get check` pass on-device.
 
 No source or test file was changed; no APK was built; no GitHub Actions were run.
+
+
+### Approved launch-option change staged on a separate code branch (25 November 2026)
+
+Following approval, the focused candidate change has been committed on the separate branch `fix/dpkg-proot-link2symlink`:
+
+- `RunnerCommand.prootCommand()` now places `-l` (the pinned PRoot `link2symlink` option) in the PRoot argument list, before the rootfs and guest command.
+- `RunnerCommandTest` now checks that hard-link emulation is enabled, includes `-l` in the pre-guest option-order assertion, and updates the exact full invocation expectation.
+- The code branch is exactly two commits ahead of `main`, with changes limited to those two files. No merge or update to `main` has occurred.
+
+**Validation status:** the two branch files were fetched again from GitHub and the expected launch flag and test assertions were verified in their contents. No Gradle/unit test, APK build, GitHub Actions run, APK installation, or on-device dpkg test has been performed. This remains an unverified candidate fix until the rebuilt app is explicitly approved, installed, and tested on the affected Android device. The README documentation branch itself remains separate from the code branch.
