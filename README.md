@@ -835,9 +835,9 @@ This is a source change only. It has not been built into an APK or verified on t
 
 The same UI branch also rebalances the dashboard for short phone screens:
 
-- CPU history graph height reduced to 30dp; memory history graph reduced to 24dp.
-- Dashboard vertical gaps reduced from 8dp to 6dp and panel vertical padding reduced from 12dp to 8dp.
-- Runner panel keeps a 120dp minimum height while taking the remaining dashboard space; its log area remains vertically scrollable and follows the newest log lines.
+- CPU history graph was subsequently reduced to 22dp; memory history graph to 18dp.
+- Dashboard vertical gaps are 6dp and panel vertical padding is 8dp.
+- Metrics are in an independent scroll area; the Runner panel stays outside it, receives the larger weighted share, and has a 160dp minimum height. Its log area remains vertically scrollable and follows the newest log lines.
 
 This is source-only and still requires an APK build plus on-device verification. No Actions run or phone installation was performed.
 
