@@ -41,14 +41,15 @@ PROOT=/path/to/patched/proot ROOTFS=/path/to/ubuntu-rootfs \
   bash runtime/tests/test-link2symlink-errno.sh
 ```
 
-Run it as an unprivileged host user; root bypasses the mode-000 permission
-fixture. The test invokes guest `link(2)` under `-0 -l` twice. A pre-existing
-but unreadable `PROOT_L2S_DIR` must report `EACCES` (13), and a missing
-`PROOT_L2S_DIR` must report `ENOENT` (2). It creates only disposable
-temporary directories and does not call the host's hard-link syscall directly,
-modify the dpkg database, or change permissions outside its temporary fixture.
-The test is not a substitute for running the built APK on the target Android
-device or retrying the original dpkg operation.
+Run it as an unprivileged host user; root bypasses the mode-555 permission
+fixture. The test invokes guest `link(2)` under `-0 -l` twice. A
+non-writable but openable `PROOT_L2S_DIR` must fail at the subsequent
+`renameat(2)` with `EACCES` (13), exercising the patched errno propagation.
+A missing `PROOT_L2S_DIR` must report `ENOENT` (2). It creates only
+disposable temporary directories and does not call the host's hard-link
+syscall directly, modify the dpkg database, or change permissions outside its
+temporary fixture. The test is not a substitute for running the built APK on
+the target Android device or retrying the original dpkg operation.
 
 ## Building the bundle (`build-bundle.sh`)
 
@@ -71,8 +72,8 @@ workflow (`ubuntu-24.04-arm`):
 - Leave `release_tag` empty to get the bundle as a workflow artifact. Its
   manifest is signed only if `RUNTIME_SIGNING_KEY` is set; without it the job
   warns, and an app built with a trusted key will refuse the result.
-- Set `release_tag` (e.g. `runtime-0.1.0`) to publish a GitHub release with the
-  bundle, a `runtime-manifest.json` whose URL already points at the release
+- Set `release_tag` (e.g. `runtime-0.1.0`) to publish a GitHub release with
+  the bundle, a `runtime-manifest.json` whose URL already points at the release
   asset, and its `runtime-manifest.json.sig` — paste the manifest's raw
   download URL into the app, and the app fetches the signature itself.
 
