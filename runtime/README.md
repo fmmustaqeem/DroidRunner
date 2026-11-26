@@ -117,10 +117,12 @@ its public half into `gradle.properties`, is in the main README under
 ## License notes
 
 proot is GPL-2.0, talloc is LGPL-3.0, and the rootfs contains the usual
-Ubuntu package licenses. `build-proot.sh` pins the exact proot commit and
-talloc tarball it builds, which is the corresponding source for a shipped
-APK. When distributing APKs or bundles, keep those pins public alongside the
-patches in `runtime/patches/`.
+Ubuntu package licenses. The `build-proot.sh` recipe is adapted from the
+Godot Android Editor Build Environment (GABE), whose repository is GPL-2.0;
+its license text is included as `licenses/GABE-GPL-2.0.txt` in the
+corresponding source archive. The archive also carries the exact pinned proot
+commit, talloc source tarball, build script, cross-answers file and patches
+used to produce the APK.
 
 [termux/proot]: https://github.com/termux/proot
 [gabe]: https://github.com/godotengine/android-editor-buildenv-app
