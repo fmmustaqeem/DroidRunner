@@ -985,3 +985,48 @@ operation, hard-link test, GitHub Actions run, or deployment was performed.
 The next compatibility gate is to verify that the pinned PRoot build includes
 the link2symlink extension and to assess the relevant upstream fixes before
 asking the device to retry dpkg. Preserve the no-hard-link-test constraint.
+
+
+## F2FS link2symlink compatibility gate (2026-11-26)
+
+A further read-only review fetched the actual upstream commit metadata and
+patches for the November 23-24 link2symlink changes. These are not merely
+generic cleanup changes; several directly affect the proposed Terminal
+emulation path:
+
+- `5fcbf10f0663` resolves an internal intermediate as the file it represents
+  for operations such as `statx`, directory enumeration and `O_NOFOLLOW`.
+  Its test notes that `tar` and therefore `dpkg-deb -b` failed before this
+  fix, and that Android 14 ARM64 testing was performed.
+- `4f8c813a7f82` hides intact link2symlink intermediate/final chain files
+  from guest directory listings. Its commit description explicitly records
+  an F2FS directory-ordering failure during `cp -a`: visible internal files
+  could be copied in an unsafe order, corrupting the emulated chain. This is
+  directly relevant to this device's F2FS filesystem.
+- `482e5bdb8b1a` avoids replacing an existing file when link counts are
+  updated; it returns `EMLINK` rather than losing data when a chain-count
+  filename is already occupied.
+- `cfcb6233b20d` protects internal chain files from unlink/rename operations
+  that would otherwise leave names dangling or lose the underlying data.
+- `215fa9f90aea` repairs chain paths when a containing directory has been
+  renamed; it also records limitations for links left outside the renamed
+  directory.
+
+The upstream commit test notes include Android 14 (kernel 4.19) and Android
+15 (kernel 5.15 / F2FS) coverage across this change series. These are upstream
+test reports, not tests of this DroidRunner fork or this user's device.
+
+### Decision before any device retry
+
+The Terminal-only `-l` change must **not** yet be treated as ready for a
+dpkg retry. The pinned PRoot revision predates this F2FS/chain-integrity
+series. Enabling `PROOT_L2S_DIR` would relocate backing files, but it does
+not by itself supply the missing chain-handling fixes; no default directory
+or environment variable has been added.
+
+Next gate: compare the complete relevant upstream change series against the
+pinned source, determine a coherent minimal backport (including dependencies
+and tests), and verify the pinned runtime build includes the extension. Only
+then consider a source patch and a later device test. Do not perform native
+hard-link tests, dpkg operations, APK builds, Actions runs, merges or
+deployments without the appropriate authorization.
