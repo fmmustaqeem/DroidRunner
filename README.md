@@ -825,3 +825,29 @@ links to it, points at `PACKAGES.txt` and `SOURCE-OFFER.txt` for the rootfs,
 and says plainly when a development build has no release behind it.
 `tools/check-licence-tables-match.sh` fails the build if a component in this
 table is missing from that screen.
+
+
+## FM device compatibility test log
+
+This section records FM's device-side observations separately from upstream project claims. Historical results are not treated as proof that the current device state is healthy. Do not repeat a test merely because it appears here; rerun it only when a new change or a changed environment makes a fresh result necessary.
+
+### Recorded observations (26 November 2026)
+
+| Check | Recorded result | Status |
+| --- | --- | --- |
+| PRoot Ubuntu environment | Ubuntu 24.04 ARM64 environment has been used on the FM test device | Previously observed |
+| dpkg version | Earlier device output reported dpkg 1.22.6ubuntu6.1 | Historical; recheck only if version matters |
+| dpkg audit / package state | A later session reported that dpkg was interrupted; `apt-get check` requested `dpkg --configure -a` | Known issue; not resolved |
+| dpkg status backup | `dpkg --configure -a` failed while creating `/var/lib/dpkg/status-old` with `Permission denied` | Known blocker |
+| Core command availability | In the earlier command lookup, `python3`, `pip3`, `ffmpeg`, and `espeak-ng` were not found in PATH | Historical observation |
+| Hard-link creation | Hard-link creation had already been tested and was denied in this PRoot/filesystem environment | Previously tested; do not repeat without a specific reason |
+| Latest permission/stat probe | A probe was run for `id`, write access to `/var/lib/dpkg/status`, dpkg version, and ownership/modes of `/var/lib/dpkg` and `status`; the complete output is not yet recorded here | Output pending |
+
+### Next diagnostic rule
+
+1. Preserve the above results and avoid rerunning completed checks.
+2. First capture the complete output of the latest permission/stat probe.
+3. Diagnose why dpkg cannot create `status-old`; do not assume that UID 0 inside PRoot implies host-level filesystem permissions.
+4. Do not run package upgrades, reinstall Ubuntu, or repeat `dpkg --configure -a` until the write-permission cause is understood.
+5. Record each new test with its exact command, full output, device/runtime context, and date. Mark a result as current only after a fresh run.
+
