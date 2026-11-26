@@ -1729,3 +1729,41 @@ still required.
 
 No runtime source was changed, no hard-link syscall was tested, and no
 APK, GitHub Actions run, or device-side operation was performed.
+
+## Focused upstream errno regression test: read-only directory (2026-11-26)
+
+A closer review of upstream commit
+`bffb58da8b3a3765298d6cd82c3fdde97262249e` identified its added
+`tests/test-b1e55743.sh`. The test exercises emulated `link()` when
+the source is in a directory without write permission, alongside
+already-existing-name, broken-chain and removed-`PROOT_L2S_DIR` cases.
+It expects EACCES (13) for the non-root read-only-directory case and
+checks that the source content remains intact.
+
+Important test limitation: the script explicitly substitutes the
+expected `ro 13 3` result when its guest reports uid 0, rather than
+actually exercising the denied operation in that branch. DroidRunner's
+Ubuntu shell reports guest uid 0, so simply porting/running this test
+unchanged would not prove the Android app-host permission path. The
+Android host process, PRoot fake-id handling and SELinux policy are
+distinct from the guest's displayed uid.
+
+The regression is still valuable because it demonstrates that the
+old implementation could turn host wrapper failures into EPERM
+(Operation not permitted) instead of preserving EACCES (Permission
+denied). But the user's exact dpkg message is EACCES wording; this
+makes the errno bug a necessary correctness fix to review, not proof
+that it caused the observed failure.
+
+### Safe next test design
+
+A future device-side diagnostic should invoke only the PRoot-emulated
+`link()` on a disposable file in a disposable directory, record the
+guest-visible errno and both file contents/names, and clean up only
+that test directory. It must not use the kernel hard-link syscall
+directly, touch `/var/lib/dpkg/status`, alter SELinux, or change
+permissions on system paths. The test must be designed so it actually
+reaches the Android host permission boundary despite guest uid 0;
+otherwise it is inconclusive.
+
+No device test or runtime code change was made in this review.
