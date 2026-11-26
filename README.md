@@ -897,3 +897,65 @@ link2symlink operation returns `EACCES`. Do not treat enabling `-l`,
 changing seccomp settings, or setting F2FS workarounds as a confirmed fix
 without device evidence. Preserve the no-hard-link-test constraint.
 
+## Upstream PRoot link2symlink review (2026-11-26)
+
+A read-only review compared the fork's pinned PRoot commit
+`7266fb3e8516535682f5a9c8f3a7e70f6506eddb` with later upstream history in
+`termux/proot`. The pinned commit is from 2026-08-22. Several relevant
+upstream fixes landed afterwards; this is evidence for a future compatibility
+review, not authorization to update or rebuild the runtime.
+
+### Relevant upstream changes after the pinned commit
+
+- **2026-10-22 — errno propagation fix**
+  (`bffb58da8b3a`, “report the error a faked hard link failed with”):
+  link2symlink's host-side `rename`, `symlink`, and `readlink` wrappers
+  returned raw `-1` in some paths instead of `-errno`. PRoot could therefore
+  report `EPERM` instead of the actual error, such as `EACCES` or `ENOENT`.
+  This is a diagnostic/errno-correctness fix; it does not itself prove the
+  cause of this device's dpkg failure.
+- **2026-10-22 — failed path translation guard**
+  (`bd16a7d6b746`): link2symlink now exits early when PRoot has already
+  discarded a syscall because path translation failed, preventing the
+  extension from acting on untranslated host paths.
+- **2026-10-23 — Android Clang compatibility**
+  (`8f1029094bea`): fixes unsigned pointer arithmetic that caused a
+  segmentation fault when a faked hard-link path was accessed in builds made
+  with Clang 21. The upstream report reproduces this on an Android 15 ARM64
+  device; this is relevant to Android NDK toolchain review.
+- **2026-10-23 — linkat follow semantics**
+  (`c6880fcf8f4b`): fixes `linkat(AT_SYMLINK_FOLLOW)` handling of an
+  already-emulated link, including incorrect link counts.
+- **2026-11-23/24 — F2FS directory-listing and chain-integrity fixes**
+  (`5fcbf10f0663`, `4f8c813a7f82`, `482e5bdb8b1a`,
+  `cfcb6233b20d`, `215fa9f90aea`): fixes include treating intermediate
+  chain files consistently, hiding intact internal chain files from directory
+  listings, avoiding replacement of an existing chain-count file, preserving
+  chain files during unlink/rename, and repairing paths after directory
+  renames. The 2026-11-24 upstream test notes specifically describe an F2FS
+  directory-ordering failure during `cp -a` when internal link2symlink files
+  were visible. The reported Android test coverage for these latest changes
+  was Android 14 / kernel 4.19, with and without seccomp.
+
+### What this means for this fork
+
+The runtime build script pins the 2026-08-22 PRoot commit. The app's shared
+`RunnerCommand.prootCommand()` currently does not pass `-l` /
+`--link2symlink`. Therefore the inspected launcher does not currently request
+the link2symlink emulation that dpkg's backup `link()` operation would need
+on a filesystem where native hard links are unavailable or denied.
+
+This makes the missing launch option a **strong candidate to investigate**,
+but it is not yet a verified fix: the pinned extension predates the Android
+Clang, errno, path-translation, linkat, and F2FS-related fixes listed above.
+Simply adding `-l` to the shared launcher could affect both the interactive
+Terminal and the GitHub Runner, so it must not be enabled blindly.
+
+### Safe next engineering step
+
+Prepare a source-only compatibility/backport assessment: identify the smallest
+coherent upstream commit range required for the pinned Android build, verify
+the option registration and build inclusion, and map the upstream regression
+tests to the fork's build. No patch, runtime rebuild, APK build, device
+installation, dpkg operation, hard-link test, or GitHub Actions run has been
+performed. Keep the user's no-hard-link-test constraint in force.
