@@ -1367,3 +1367,85 @@ reproducible with respect to the NDK compiler version. A source-only
 backport plan should record the actual NDK/Clang used, or first propose a
 pinned NDK version for a future approved build. No workflow was run or
 changed as part of this inspection.
+
+## Verified commit ancestry and patch boundaries (2026-11-26)
+
+The GitHub commit metadata was checked for the candidate changes, including
+their actual parent SHAs and changed-file lists. This resolves an important
+ambiguity in the previous candidate work order: the relevant fixes are not
+one uninterrupted sequence of only link2symlink commits. Unrelated PRoot
+changes are interleaved, and several candidates have prerequisites outside
+the extension file.
+
+### Verified focused ancestry segments
+
+**Core link lifecycle segment** (each item below has the preceding item as
+its direct parent):
+
+`032f82d579c3` → `bd16a7d6b746` →
+`bffb58da8b3a` → `87c4109a528e` →
+`03aea836179e` → `05a93edfc85f` →
+`fa47780ce557` → `1ce2525b3c30` →
+`355f840ea50c` → `b8b3e6280bc5` →
+`968ae1be84c6`.
+
+This segment covers delayed link-count decrement after kernel success,
+failed-path translation, errno propagation, broken links, intermediate
+reservation, count/name limits, directory-entry type, safe failed-getdents
+handling, 32-bit getdents parsing and symbolic-link preservation.
+The sequence is verified from GitHub parent metadata, not yet tested as a
+cherry-pick series against the pinned tree.
+
+**Filesystem chain integrity segment** (also direct-parent succession):
+
+`5fcbf10f0663` → `4f8c813a7f82` →
+`482e5bdb8b1a` → `cfcb6233b20d` →
+`215fa9f90aea`.
+
+This covers resolving intermediate files, hiding internal chain entries,
+avoiding overwrite of chain-count files, keeping chain files in place during
+rename/unlink, and repairing chains after directory rename. The last commit
+changes the shared extension event contract in `extension.h`; it must not
+be backported as a standalone C-file copy.
+
+### Candidates with separate prerequisites or scope
+
+- `7f2fab0fb3a9` has parent
+  `4a1dbac41fc25db96b7a6211e474b08bf93312ee` and adds a
+  `SYSCALL_CHAINED_EXIT` callback for the fake_id0 fstat emulation path.
+  Its correctness depends on the corresponding fake_id0/chained-syscall
+  behavior in the target tree. It is not part of the core lifecycle segment.
+- `8f467b0991d7` changes execve, path canonicalization and extension
+  interfaces; `a396094c7ccc` follows it and adds O_NOFOLLOW descriptor
+  naming. These are broader exec/descriptor compatibility features, not
+  automatically required for dpkg's status backup.
+- `543566106a88` changes the shared final-symlink path event contract.
+  `0e4287546a7d` and `5fcbf10f0663` occur later in that ancestry and
+  require review against this path behavior.
+- `8f1029094bea` is a one-file Clang 21 pointer/index fix; its parent is
+  `345dbd4a5f98`, not the core lifecycle segment. `c6880fcf8f4b`
+  directly follows it and adds linkat(AT_SYMLINK_FOLLOW) handling.
+- `4f8c813a7f82` is a cross-file coordination change touching
+  `link2symlink.c`, `hidden_files.c`, `chain.c`, `chain.h`, and tests.
+  This confirms that copying only the extension implementation is unsafe.
+
+### Measured source growth between the exact revisions
+
+| File | Pinned bytes | Current upstream bytes |
+|---|---:|---:|
+| `link2symlink.c` | 37,291 | 90,840 |
+| `hidden_files.c` | 5,971 | 6,666 |
+| `chain.c` | 6,197 | 6,689 |
+| `chain.h` | 1,405 | 1,462 |
+| `extension.h` | 8,445 | 9,957 |
+| `canon.c` | 11,768 | 14,917 |
+
+The pinned revision is 123 commits behind the inspected upstream head.
+The growth in `link2symlink.c` is substantial; it is not a small isolated
+permission workaround. A safe next step is to construct a temporary source
+worktree and test a minimal, dependency-complete backport set there, rather
+than replacing the pinned file wholesale.
+
+No source files under `runtime/` or `app/` were changed by this review.
+No device hard-link operation, runtime build, APK, GitHub Actions run,
+dpkg retry, merge or deployment was performed.
