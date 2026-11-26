@@ -1556,3 +1556,38 @@ A future controlled development test must separately verify:
 The user's Android device is not a test target for hard-link operations.
 No such probe was run. No PRoot runtime patch, APK build, GitHub Actions run,
 dpkg retry, device operation, merge or deployment was performed.
+
+## Core lifecycle dependency boundary correction (2026-11-26)
+
+A direct comparison from the exact pinned PRoot revision
+`7266fb3e8516535682f5a9c8f3a7e70f6506eddb` to the first focused
+lifecycle candidate `032f82d579c3fc45e111b04d6c9c50d38d629ecb`
+shows **37 upstream commits**, not a self-contained five-commit patch.
+The comparison spans shared syscall, tracee, seccomp, fake_id0, execve,
+path-canonicalization and extension code in addition to link2symlink.
+Consequently, applying only the focused extension commits would not be a
+dependency-complete backport.
+
+The 032f82d lifecycle fix itself changes the syscall-entry/exit protocol:
+it remembers a destination link before unlink/rename and decrements its
+emulated link count only after the kernel operation has actually removed
+the name. Its rationale explicitly covers failed syscalls, renameat2
+flags, seccomp-rejected calls and temporary write permission for the
+intermediate directory. These semantics cross the extension's entry/exit
+events and fake_id0 permission handling; the required supporting commits
+must be identified from code-level symbol and event dependencies, not
+just from the link2symlink file history.
+
+The source comparison also confirms that the pinned file is 37,291 bytes
+while the 032f82d version is 48,843 bytes. The candidate version adds an
+`execve/execve.h` include absent from the pinned file, another signal
+that the target's surrounding headers and APIs must be reconciled before
+porting.
+
+### Revised decision
+
+The five core commits listed above remain functional review targets, not
+a ready-to-apply patch series. The next review gate is to map the exact
+entry/exit event contract, fake_id0 permission hooks, renameat2 syscall
+definitions and extension header changes between the pinned tree and
+032f82d. No source code was edited in DroidRunner and no patch was applied.
