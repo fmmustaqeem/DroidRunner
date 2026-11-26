@@ -13,6 +13,11 @@ if [[ ! -d "$ROOTFS" ]]; then
     exit 2
 fi
 
+if [[ "$EUID" -eq 0 ]]; then
+    echo "Run this test as an unprivileged user; root bypasses the mode-000 fixture." >&2
+    exit 2
+fi
+
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/droidrunner-link2symlink.XXXXXX")
 cleanup() {
     chmod 700 "$TMP_DIR/l2s-eacces" 2>/dev/null || true
