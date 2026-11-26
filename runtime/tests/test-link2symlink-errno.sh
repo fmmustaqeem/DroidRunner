@@ -30,8 +30,13 @@ TMP_DIR=$(mktemp -d "$ROOTFS_PARENT/.droidrunner-link2symlink.XXXXXX") || {
     echo "Cannot create a temporary directory beside ROOTFS: $ROOTFS_PARENT" >&2
     exit 2
 }
-ROOTFS_TMP_DEVICE=$(stat -c '%d' "$ROOTFS/tmp")
-L2S_DEVICE=$(stat -c '%d' "$TMP_DIR")
+if ! ROOTFS_TMP_DEVICE=$(stat -c '%d' "$ROOTFS/tmp") ||
+   ! L2S_DEVICE=$(stat -c '%d' "$TMP_DIR") ||
+   [[ -z "$ROOTFS_TMP_DEVICE" || -z "$L2S_DEVICE" ]]; then
+    rmdir "$TMP_DIR"
+    echo "Cannot determine filesystem device IDs for ROOTFS/tmp and the temporary backing directory." >&2
+    exit 2
+fi
 if [[ "$ROOTFS_TMP_DEVICE" != "$L2S_DEVICE" ]]; then
     echo "Cannot run regression test: ROOTFS/tmp and PROOT_L2S_DIR are on different filesystems (device $ROOTFS_TMP_DEVICE vs $L2S_DEVICE)." >&2
     rmdir "$TMP_DIR"
