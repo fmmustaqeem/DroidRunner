@@ -1917,3 +1917,50 @@ helper/API must be checked in the pinned tree before preparing a
 minimal backport. Until that exact commit-local diff is verified, the
 previous “standalone source-compatible” wording is provisional, not a
 backport approval. No runtime source was changed in this ancestry check.
+
+
+## Commit-local diff review against pinned PRoot (2026-11-26)
+
+Fetched the actual parent-to-commit unified diffs (not the accumulated
+source snapshots) for `03aea836` and `bffb58d`.
+
+### `bffb58d` errno correction
+
+The commit-local production diff is confined to
+`src/extension/link2symlink/link2symlink.c`. It changes the
+failure returns for the host wrappers `l2s_rename`,
+`l2s_symlink`, and `l2s_unlink` to `-errno`, fixes
+`my_readlink` to return `-errno` for a failed host
+`readlink/readlinkat`, and fixes the read-path/error handling
+around the final symlink. These wrapper functions in the pinned source
+return conventional `-1` with `errno` set, so this is a
+directly relevant and narrowly scoped compatibility correction.
+It corrects the guest-visible error code; it does not grant host
+permissions or prove the Android SELinux operation will succeed.
+The upstream commit also changes `tests/link.c` to exit with the
+actual errno and adds `tests/test-b1e55743.sh`.
+
+### `03aea836` first-link reservation
+
+The commit-local production diff is also confined to
+`src/extension/link2symlink/link2symlink.c`. It replaces the
+`access(F_OK)` slot check with an `lstat/fstatat(AT_SYMLINK_NOFOLLOW)`
+check, reserves the intermediate symlink before moving the original,
+checks the final backing-file name, and attempts rollback/cleanup when
+subsequent operations fail. The pinned source has the old
+`l2s_access` helper and the conventional wrappers needed by the
+patch; no additional shared syscall or tracee API change appears in
+this commit-local diff. The upstream regression adds
+`tests/test-60e0614d.sh` and uses `tests/link.c`.
+
+### Backport decision
+
+Both commit-local production diffs are now confirmed as small,
+link2symlink-only candidate patches against the pinned implementation;
+the earlier 39/41-commit comparison described accumulated ancestry,
+not the individual patch size. Keep the changes separate: apply and
+review `bffb58d` first as the errno correction, then consider
+`03aea` as the independent data-preservation/collision fix.
+The tests must run only inside the disposable PRoot `-l` fixture;
+no raw host hard-link test is authorized. No production patch has been
+applied, and no test, APK build, or device operation has been run.
