@@ -2024,3 +2024,12 @@ No wrapper signature or shared PRoot API change is required. The upstream `tests
 A second exact full-file symbol scan found that pinned blob `9c67b104` has **no** `decrement_removed_link_count()` function and no `EACCES` fallback branch. The corresponding upstream hunk in `bffb58d` therefore cannot be applied to this pinned revision and must be omitted, not force-fitted. The pinned file does contain `decrement_intermediate_count()` and its wrapper call-sites, which remain the applicable errno-correction scope.
 
 Consequently the prior backport map's item 5 (the `-EACCES` comparison) is withdrawn for this pinned source. The exact backport is smaller than the upstream commit: adapt only the matching `my_readlink()`, `move_and_symlink_path()`, and `decrement_intermediate_count()` hunks after a fresh parent/pinned diff review. Do not claim the complete upstream test is directly compatible until its missing-function assumptions are reconciled. No production source has been edited.
+
+
+## Draft pinned-source errno patch (not applied)
+
+A line-by-line symbol scan of pinned `link2symlink.c` corrected the earlier function-name mapping: this revision has `decrement_link_count()` only; it has neither upstream `decrement_intermediate_count()` nor `decrement_removed_link_count()`. The analogous l2s rename/unlink/symlink operations are in `decrement_link_count()` and are included in the draft backport. The `-EACCES` fallback hunk is excluded because the matching helper/function does not exist in this pinned file.
+
+A proposed, explicitly unapplied unified diff is committed at `docs/patch-proposals/proot-bffb58d-pinned-errno.patch`. It adapts only the pinned `my_readlink()`, `move_and_symlink_path()`, and `decrement_link_count()` paths. It also preserves a negative `read_path()` status instead of overwriting it with potentially stale `errno` (the upstream correction in the final symlink block). This is a review artifact only: production PRoot source, runtime command, APK, and device state remain unchanged. No build or tests were run.
+
+Patch proposal commit: `80d3a3b9b95f1efb1980b8f59ccfbc359d111cf1`.
