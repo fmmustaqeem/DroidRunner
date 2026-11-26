@@ -1345,3 +1345,25 @@ headers or callback semantics.
 No PRoot runtime source has been changed in DroidRunner by this audit.
 No hard-link test was run on the user's phone. No build, APK, GitHub
 Actions, device operation, dpkg retry, merge or deployment was performed.
+
+## Runtime compiler provenance check (2026-11-26)
+
+The repository build configuration was inspected read-only:
+
+- `runtime/build-proot.sh` defaults `ANDROID_API=28` and
+  `PROOT_COMMIT=7266fb3e8516535682f5a9c8f3a7e70f6506eddb`.
+- The script requires `ANDROID_NDK_ROOT` and selects
+  `$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_TAG/bin/aarch64-linux-android28-clang`.
+  It does not pin or print an NDK release or Clang version.
+- `.github/workflows/android.yml` supplies
+  `ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME"`, so the CI build uses the
+  runner's latest installed NDK rather than a repository-pinned version.
+- `app/build.gradle.kts` reads the PRoot source pin from the script but
+  contains no NDK revision pin.
+
+Therefore, whether the upstream Clang 21 pointer fix is required cannot
+be answered from the repository source alone. The build is not currently
+reproducible with respect to the NDK compiler version. A source-only
+backport plan should record the actual NDK/Clang used, or first propose a
+pinned NDK version for a future approved build. No workflow was run or
+changed as part of this inspection.
