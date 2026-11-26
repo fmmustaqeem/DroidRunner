@@ -1,0 +1,1457 @@
+--- a/src/extension/link2symlink/link2symlink.c
++++ b/src/extension/link2symlink/link2symlink.c
+@@ -294,7 +294,7 @@
+ 		? readlink(symlink, value, PATH_MAX)
+ 		: readlinkat(dir_fd, name, value, PATH_MAX);
+ 	if (size < 0)
+-		return size;
++		return -errno;
+ 	if (size >= PATH_MAX)
+ 		return -ENAMETOOLONG;
+ 	value[size] = '\0';
+@@ -578,7 +578,7 @@
+ 		strcat(final, ".0002");
+ 		status = l2s_rename(original, final);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) original, (intptr_t) final);
+ 		if (status < 0)
+ 			return status;
+@@ -586,12 +586,12 @@
+ 		/* Symlink the intermediate to the final file.  */
+ 		status = l2s_symlink(final, intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 
+ 		/* Symlink the original path to the intermediate one.  */
+ 		status = symlink(intermediate, original);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 	} else {
+ 		/*Move the original content to new location, by incrementing count at end of path. */
+ 		size = my_readlink(intermediate, final);
+@@ -606,7 +606,7 @@
+ 
+ 		status = l2s_rename(final, new_final);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) final, (intptr_t) new_final);
+ 		if (status < 0)
+ 			return status;
+@@ -614,730 +614,730 @@
+ 		/* Symlink the intermediate to the final file.  */
+ 		status = l2s_unlink(intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = l2s_symlink(final, intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 	}
+ 
+ 	/* Perform symlink() operation within PRoot.  */
+ 	status = read_path(tracee, final, peek_reg(tracee, CURRENT, link_target_sysarg));
+-	if (status >= 0) {
++	if (status >= 0 && symlink(intermediate, final) < 0)
+-		status = symlink(intermediate, final);
++		status = -errno;
+-		if (status < 0) status = -errno;
++	if (status < 0) {
+-	}
++		decrement_link_count(tracee, sysarg);
+-	if (status < 0) {
++		return status;
+-		status = -errno;
++	}
+-		decrement_link_count(tracee, sysarg);
++	poke_reg(tracee, SYSARG_RESULT, 0);
+-		return status;
++	set_sysnum(tracee, PR_void);
+-	}
++
+-	poke_reg(tracee, SYSARG_RESULT, 0);
++	return 0;
+-	set_sysnum(tracee, PR_void);
++}
+ 
+-	return 0;
++
+-}
++/* If path points a file that is a symlink to a file that begins
+-
++ *   with PREFIX, let the file be deleted, but also delete the
+-
++ *   symlink that was created and decremnt the count that is tacked
+-/* If path points a file that is a symlink to a file that begins
++ *   to end of original file.
+- *   with PREFIX, let the file be deleted, but also delete the
++ */
+- *   symlink that was created and decremnt the count that is tacked
++static int decrement_link_count(Tracee *tracee, Reg sysarg)
+- *   to end of original file.
++{
+- */
++	char original[PATH_MAX];
+-static int decrement_link_count(Tracee *tracee, Reg sysarg)
++	char intermediate[PATH_MAX];
+-{
++	char final[PATH_MAX];
+-	char original[PATH_MAX];
++	char new_final[PATH_MAX];
+-	char intermediate[PATH_MAX];
++	char * name;
+-	char final[PATH_MAX];
++	struct stat statl;
+-	char new_final[PATH_MAX];
++	ssize_t size;
+-	char * name;
++	int status;
+-	struct stat statl;
++	int link_count;
+-	ssize_t size;
++
+-	int status;
++	/* Note: this path was already canonicalized.  */
+-	int link_count;
++	size = read_string(tracee, original, peek_reg(tracee, CURRENT, sysarg), PATH_MAX);
+-
++	if (size < 0)
+-	/* Note: this path was already canonicalized.  */
++		return size;
+-	size = read_string(tracee, original, peek_reg(tracee, CURRENT, sysarg), PATH_MAX);
++	if (size >= PATH_MAX)
+-	if (size < 0)
++		return -ENAMETOOLONG;
+-		return size;
++
+-	if (size >= PATH_MAX)
++	/* Check if it is a converted link already.  */
+-		return -ENAMETOOLONG;
++	status = lstat(original, &statl);
+-
++	if (status < 0)
+-	/* Check if it is a converted link already.  */
++		return 0;
+-	status = lstat(original, &statl);
++
+-	if (status < 0)
++	if (!S_ISLNK(statl.st_mode))
+ 		return 0;
+ 
+-	if (!S_ISLNK(statl.st_mode))
++	size = my_readlink(original, intermediate);
+-		return 0;
++	if (size < 0)
+-
++		return size;
+-	size = my_readlink(original, intermediate);
++
+-	if (size < 0)
++	name = strrchr(intermediate, '/');
+-		return size;
++	if (name == NULL)
+-
++		name = intermediate;
+-	name = strrchr(intermediate, '/');
++	else
+-	if (name == NULL)
++		name++;
+-		name = intermediate;
++
+-	else
++	/* Check if an l2s file is pointed to */
+-		name++;
++	if (strncmp(name, PREFIX, strlen(PREFIX)) != 0)
+-
++		return 0;
+-	/* Check if an l2s file is pointed to */
++
+-	if (strncmp(name, PREFIX, strlen(PREFIX)) != 0)
++	/* Read intermediate link - if this fails then
+-		return 0;
++	 * this link2symlink is broken and we silently
+-
++	 * skip as we were removing it anyway.  */
+-	/* Read intermediate link - if this fails then
++	size = my_readlink(intermediate, final);
+-	 * this link2symlink is broken and we silently
++	if (size < 0) {
+-	 * skip as we were removing it anyway.  */
++		VERBOSE(tracee, 1, "Skiping deref of broken link2symlink \"%s\" -> \"%s\"", original, intermediate);
+-	size = my_readlink(intermediate, final);
++		return 0;
+-	if (size < 0) {
++	}
+-		VERBOSE(tracee, 1, "Skiping deref of broken link2symlink \"%s\" -> \"%s\"", original, intermediate);
++
+-		return 0;
++	link_count = atoi(final + strlen(final) - 4);
+-	}
++	link_count--;
+ 
+-	link_count = atoi(final + strlen(final) - 4);
++	/* Check if it is or is not the last link to delete */
+-	link_count--;
++	if (link_count > 0) {
+-
++		strncpy(new_final, final, strlen(final) - 4);
+-	/* Check if it is or is not the last link to delete */
++		sprintf(new_final + strlen(final) - 4, "%04d", link_count);
+-	if (link_count > 0) {
++
+-		strncpy(new_final, final, strlen(final) - 4);
++		status = l2s_rename(final, new_final);
+-		sprintf(new_final + strlen(final) - 4, "%04d", link_count);
++		if (status < 0)
+-
++			return -errno;
+-		status = l2s_rename(final, new_final);
++		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) final, (intptr_t) new_final);
+ 		if (status < 0)
+ 			return status;
+-		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) final, (intptr_t) new_final);
++
+-		if (status < 0)
++		strcpy(final, new_final);
+-			return status;
++
+-
++		/* Symlink the intermediate to the final file.  */
+-		strcpy(final, new_final);
++		status = l2s_unlink(intermediate);
+-
++		if (status < 0)
+-		/* Symlink the intermediate to the final file.  */
++			return -errno;
+-		status = l2s_unlink(intermediate);
++
+-		if (status < 0)
++		status = l2s_symlink(final, intermediate);
+-			return status;
++		if (status < 0)
+-
++			return -errno;
+-		status = l2s_symlink(final, intermediate);
++	} else {
+-		if (status < 0)
++		/* If it is the last, delete the intermediate and final */
+-			return status;
++		status = l2s_unlink(intermediate);
+-	} else {
++		if (status < 0)
+-		/* If it is the last, delete the intermediate and final */
++			return -errno;
+-		status = l2s_unlink(intermediate);
++		status = l2s_unlink(final);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+-		status = l2s_unlink(final);
++		status = notify_extensions(tracee, LINK2SYMLINK_UNLINK, (intptr_t) final, 0);
+ 		if (status < 0)
+ 			return status;
+-		status = notify_extensions(tracee, LINK2SYMLINK_UNLINK, (intptr_t) final, 0);
++		}
+-		if (status < 0)
++
+-			return status;
++	return 0;
+-		}
++}
+ 
+-	return 0;
++/**
+-}
++ * sizeof(struct stat) cut to contain only fields that are at same addresses
+-
++ * regardless of whenever tracee is 32-bit or 64-bit.
+-/**
++ *
+- * sizeof(struct stat) cut to contain only fields that are at same addresses
++ * This allows modification of following fields:
+- * regardless of whenever tracee is 32-bit or 64-bit.
++ * - st_dev
+- *
++ * - st_mode
+- * This allows modification of following fields:
++ * - st_nlink
+- * - st_dev
++ * - st_uid
+- * - st_mode
++ * - st_gid
+- * - st_nlink
++ * - st_rdev
+- * - st_uid
++ * - st_size
+- * - st_gid
++ * - st_blksize
+- * - st_rdev
++ * - st_blocks
+- * - st_size
++ */
+- * - st_blksize
++#define SIZEOF_RELEVANT_STRUCT_STAT 72
+- * - st_blocks
++
+- */
++/**
+-#define SIZEOF_RELEVANT_STRUCT_STAT 72
++ * Make it so fake hard links look like real hard link with respect to number of links and inode
+-
++ * This function returns -errno if an error occured, otherwise 0.
+-/**
++ */
+- * Make it so fake hard links look like real hard link with respect to number of links and inode
++static int handle_sysexit_end(Extension *extension)
+- * This function returns -errno if an error occured, otherwise 0.
++{
+- */
++	Tracee *tracee = TRACEE(extension);
+-static int handle_sysexit_end(Extension *extension)
++	word_t sysnum;
+-{
++
+-	Tracee *tracee = TRACEE(extension);
++	sysnum = get_sysnum(tracee, ORIGINAL);
+-	word_t sysnum;
++
+-
++	#ifdef USERLAND
+-	sysnum = get_sysnum(tracee, ORIGINAL);
++		if ((get_sysnum(tracee, CURRENT) == PR_fstat) || (get_sysnum(tracee, CURRENT) == PR_fstat64))
+-
++			return 0;
+-	#ifdef USERLAND
++
+-		if ((get_sysnum(tracee, CURRENT) == PR_fstat) || (get_sysnum(tracee, CURRENT) == PR_fstat64))
++		if (((sysnum == PR_fstat) || (sysnum == PR_fstat64)) && (get_sysnum(tracee, CURRENT) == PR_readlinkat))
+ 			return 0;
+-
++	#endif
+-		if (((sysnum == PR_fstat) || (sysnum == PR_fstat64)) && (get_sysnum(tracee, CURRENT) == PR_readlinkat))
++
+-			return 0;
++	switch (sysnum) {
+-	#endif
++
+-
++	case PR_fstatat64:                 //int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags);
+-	switch (sysnum) {
++	case PR_newfstatat:                //int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags);
+-
++	case PR_stat64:                    //int stat(const char *path, struct stat *buf);
+-	case PR_fstatat64:                 //int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags);
++	case PR_lstat64:                   //int lstat(const char *path, struct stat *buf);
+-	case PR_newfstatat:                //int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags);
++	case PR_fstat64:                   //int fstat(int fd, struct stat *buf);
+-	case PR_stat64:                    //int stat(const char *path, struct stat *buf);
++	case PR_stat:                      //int stat(const char *path, struct stat *buf);
+-	case PR_lstat64:                   //int lstat(const char *path, struct stat *buf);
++	case PR_lstat:                     //int lstat(const char *path, struct stat *buf);
+-	case PR_fstat64:                   //int fstat(int fd, struct stat *buf);
++	case PR_fstat: {                   //int fstat(int fd, struct stat *buf);
+-	case PR_stat:                      //int stat(const char *path, struct stat *buf);
++		word_t result;
+-	case PR_lstat:                     //int lstat(const char *path, struct stat *buf);
++		Reg sysarg_stat;
+-	case PR_fstat: {                   //int fstat(int fd, struct stat *buf);
++		Reg sysarg_path;
+-		word_t result;
++		int status;
+-		Reg sysarg_stat;
++		struct stat statl = {};
+-		Reg sysarg_path;
++		ssize_t size;
+-		int status;
++		char original[PATH_MAX];
+-		struct stat statl = {};
++		char intermediate[PATH_MAX];
+-		ssize_t size;
++		char final[PATH_MAX];
+-		char original[PATH_MAX];
++		char * name;
+-		char intermediate[PATH_MAX];
++		struct stat finalStat;
+-		char final[PATH_MAX];
++
+-		char * name;
++		/* Override only if it succeed.  */
+-		struct stat finalStat;
++		result = peek_reg(tracee, CURRENT, SYSARG_RESULT);
+-
++		if (result != 0)
+-		/* Override only if it succeed.  */
++			return 0;
+-		result = peek_reg(tracee, CURRENT, SYSARG_RESULT);
++
+-		if (result != 0)
++		if (sysnum == PR_fstat64 || sysnum == PR_fstat) {
+-			return 0;
++			#ifndef USERLAND
+-
++				status = readlink_proc_pid_fd(tracee->pid, peek_reg(tracee, MODIFIED, SYSARG_1), original);
+-		if (sysnum == PR_fstat64 || sysnum == PR_fstat) {
++				if (status < 0) {
+-			#ifndef USERLAND
++					VERBOSE(tracee, 3, "link2symlink: readlink_proc_pid_fd failed, status=%d", status);
+-				status = readlink_proc_pid_fd(tracee->pid, peek_reg(tracee, MODIFIED, SYSARG_1), original);
++					return 0; // Don't alter syscall result
+-				if (status < 0) {
++				}
+-					VERBOSE(tracee, 3, "link2symlink: readlink_proc_pid_fd failed, status=%d", status);
++				if (strlen(original) > strlen(DELETED_SUFFIX) &&
+-					return 0; // Don't alter syscall result
++						strcmp(original + strlen(original) - strlen(DELETED_SUFFIX), DELETED_SUFFIX) == 0)
+-				}
++					original[strlen(original) - strlen(DELETED_SUFFIX)] = '\0';
+-				if (strlen(original) > strlen(DELETED_SUFFIX) &&
++			#endif
+-						strcmp(original + strlen(original) - strlen(DELETED_SUFFIX), DELETED_SUFFIX) == 0)
++			#ifdef USERLAND
+-					original[strlen(original) - strlen(DELETED_SUFFIX)] = '\0';
++				size = read_string(tracee, original, peek_reg(tracee, CURRENT, SYSARG_2), PATH_MAX);
+-			#endif
++				if (size < 0)
+-			#ifdef USERLAND
++					return size;
+-				size = read_string(tracee, original, peek_reg(tracee, CURRENT, SYSARG_2), PATH_MAX);
++				if (size >= PATH_MAX)
+-				if (size < 0)
++					return -ENAMETOOLONG;
+-					return size;
++			#endif
+-				if (size >= PATH_MAX)
++		} else {
+-					return -ENAMETOOLONG;
++			if (sysnum == PR_fstatat64 || sysnum == PR_newfstatat)
+-			#endif
++				sysarg_path = SYSARG_2;
+-		} else {
++			else
+-			if (sysnum == PR_fstatat64 || sysnum == PR_newfstatat)
++				sysarg_path = SYSARG_1;
+-				sysarg_path = SYSARG_2;
++			size = read_string(tracee, original, peek_reg(tracee, MODIFIED, sysarg_path), PATH_MAX);
+-			else
++			if (size < 0)
+-				sysarg_path = SYSARG_1;
++				return size;
+-			size = read_string(tracee, original, peek_reg(tracee, MODIFIED, sysarg_path), PATH_MAX);
++			if (size >= PATH_MAX)
+-			if (size < 0)
++				return -ENAMETOOLONG;
+-				return size;
++		}
+-			if (size >= PATH_MAX)
++
+-				return -ENAMETOOLONG;
++		name = strrchr(original, '/');
+-		}
++		if (name == NULL)
+-
++			name = original;
+-		name = strrchr(original, '/');
++		else
+-		if (name == NULL)
++			name++;
+-			name = original;
++
+-		else
++		/* Check if it is a link */
+-			name++;
++		status = lstat(original, &statl);
+ 
+-		/* Check if it is a link */
++		if (strncmp(name, PREFIX, strlen(PREFIX)) == 0) {
+-		status = lstat(original, &statl);
++			if (S_ISLNK(statl.st_mode)) {
+-
++				strcpy(intermediate,original);
+-		if (strncmp(name, PREFIX, strlen(PREFIX)) == 0) {
++				goto intermediate_proc;
+-			if (S_ISLNK(statl.st_mode)) {
++			} else {
+-				strcpy(intermediate,original);
++				strcpy(final,original);
+-				goto intermediate_proc;
++				goto final_proc;
+-			} else {
++			}
+-				strcpy(final,original);
++		}
+-				goto final_proc;
++
+-			}
++		if (!S_ISLNK(statl.st_mode))
+-		}
++			return 0;
+ 
+-		if (!S_ISLNK(statl.st_mode))
++		size = my_readlink(original, intermediate);
+-			return 0;
++		if (size < 0)
+-
++			return size;
+-		size = my_readlink(original, intermediate);
++
+-		if (size < 0)
++		name = strrchr(intermediate, '/');
+-			return size;
++		if (name == NULL)
+-
++			name = intermediate;
+-		name = strrchr(intermediate, '/');
++		else
+-		if (name == NULL)
++			name++;
+-			name = intermediate;
++
+-		else
++		if (strncmp(name, PREFIX, strlen(PREFIX)) != 0)
+-			name++;
++			return 0;
+ 
+-		if (strncmp(name, PREFIX, strlen(PREFIX)) != 0)
++		intermediate_proc: size = my_readlink(intermediate, final);
+-			return 0;
++		if (size < 0)
+-
++			return size;
+-		intermediate_proc: size = my_readlink(intermediate, final);
++
+-		if (size < 0)
++		final_proc: status = lstat(final,&finalStat);
+-			return size;
++		if (status < 0)
+-
++			return status;
+-		final_proc: status = lstat(final,&finalStat);
++
+-		if (status < 0)
++		finalStat.st_nlink = atoi(final + strlen(final) - 4);
+-			return status;
++
+-
++		/* Get the address of the 'stat' structure.  */
+-		finalStat.st_nlink = atoi(final + strlen(final) - 4);
++		if (sysnum == PR_fstatat64 || sysnum == PR_newfstatat)
+-
++			sysarg_stat = SYSARG_3;
+-		/* Get the address of the 'stat' structure.  */
++		else
+-		if (sysnum == PR_fstatat64 || sysnum == PR_newfstatat)
++			sysarg_stat = SYSARG_2;
+-			sysarg_stat = SYSARG_3;
++
+-		else
++		#ifdef USERLAND
+-			sysarg_stat = SYSARG_2;
++			/* Overwrite the stat struct with the correct number of "links". */
+-
++			read_data(tracee, &statl, peek_reg(tracee, ORIGINAL, sysarg_stat), sizeof(statl));
+-		#ifdef USERLAND
++			finalStat.st_mode = statl.st_mode;
+-			/* Overwrite the stat struct with the correct number of "links". */
++			finalStat.st_uid = statl.st_uid;
+-			read_data(tracee, &statl, peek_reg(tracee, ORIGINAL, sysarg_stat), sizeof(statl));
++			finalStat.st_gid = statl.st_gid;
+-			finalStat.st_mode = statl.st_mode;
++		#endif
+-			finalStat.st_uid = statl.st_uid;
++		status = write_data(tracee, peek_reg(tracee, ORIGINAL,  sysarg_stat), &finalStat,
+-			finalStat.st_gid = statl.st_gid;
++			is_32on64_mode(tracee) ? SIZEOF_RELEVANT_STRUCT_STAT : sizeof(finalStat));
+-		#endif
++		if (status < 0)
+-		status = write_data(tracee, peek_reg(tracee, ORIGINAL,  sysarg_stat), &finalStat,
++			return status;
+-			is_32on64_mode(tracee) ? SIZEOF_RELEVANT_STRUCT_STAT : sizeof(finalStat));
++
+-		if (status < 0)
++		return 0;
+-			return status;
++	}
+ 
+-		return 0;
++	case PR_creat:                     //int creat(const char *pathname, mode_t mode);
+-	}
++	case PR_open:                      //int open(const char *pathname, int flags, ...);
+-
++	case PR_openat:                    //int openat(int dirfd, const char *pathname, int flags, ...);
+-	case PR_creat:                     //int creat(const char *pathname, mode_t mode);
++	case PR_openat2: {                 //int openat2(int dirfd, const char *pathname, struct open_how *how, size_t size);
+-	case PR_open:                      //int open(const char *pathname, int flags, ...);
++		Link2SymlinkConfig *config;
+-	case PR_openat:                    //int openat(int dirfd, const char *pathname, int flags, ...);
++		word_t result;
+-	case PR_openat2: {                 //int openat2(int dirfd, const char *pathname, struct open_how *how, size_t size);
++
+-		Link2SymlinkConfig *config;
++		/* Nothing to do unless this open was redirected to an l2s
+-		word_t result;
++		 * file at the enter stage.  */
+-
++		config = get_config(extension, false);
+-		/* Nothing to do unless this open was redirected to an l2s
++		if (config == NULL || config->pending_link[0] == '\0')
+-		 * file at the enter stage.  */
++			return 0;
+-		config = get_config(extension, false);
++
+-		if (config == NULL || config->pending_link[0] == '\0')
++		result = peek_reg(tracee, CURRENT, SYSARG_RESULT);
+-			return 0;
++		if ((int) result >= 0)
+-
++			remember_fd(tracee->pid, (int) result, config->pending_link);
+-		result = peek_reg(tracee, CURRENT, SYSARG_RESULT);
++
+-		if ((int) result >= 0)
++		config->pending_link[0] = '\0';
+-			remember_fd(tracee->pid, (int) result, config->pending_link);
++
+-
++		return 0;
+-		config->pending_link[0] = '\0';
++	}
+ 
+-		return 0;
++	default:
+-	}
++		return 0;
+-
++	}
+-	default:
++}
+-		return 0;
++
+-	}
++static void link2symlink_handle_statx(struct statx_syscall_state *state)
+-}
++{
+-
++	if (!(state->statx_buf.stx_mask & STATX_NLINK))
+-static void link2symlink_handle_statx(struct statx_syscall_state *state)
++		return;
+-{
++
+-	if (!(state->statx_buf.stx_mask & STATX_NLINK))
++	if (!is_l2s_file(state->host_path))
+ 		return;
+ 
+-	if (!is_l2s_file(state->host_path))
++	size_t ending_len = strlen(state->host_path);
+-		return;
++	state->statx_buf.stx_nlink = atoi(&state->host_path[ending_len - 4]);
+ 
+-	size_t ending_len = strlen(state->host_path);
++	/* The statx() that PRoot let the kernel perform did succeed, so
+-	state->statx_buf.stx_nlink = atoi(&state->host_path[ending_len - 4]);
++	 * its result was read back from the tracee and is not written
+-
++	 * again unless it is explicitly reported as updated.  */
+-	/* The statx() that PRoot let the kernel perform did succeed, so
++	state->updated_stats = true;
+-	 * its result was read back from the tracee and is not written
++}
+-	 * again unless it is explicitly reported as updated.  */
++
+-	state->updated_stats = true;
++/**
+-}
++ * Remember the name the tracee of @extension used for the file it is
+-
++ * about to open, when @host_path -- the path this open was redirected
+-/**
++ * to during the canonicalization -- is a file of the l2s directory.
+- * Remember the name the tracee of @extension used for the file it is
++ * The kernel knows nothing about faked hard links, so it would report
+- * about to open, when @host_path -- the path this open was redirected
++ * @host_path in "/proc/<PID>/fd/<FD>", c.f. readlink_proc_fd().
+- * to during the canonicalization -- is a file of the l2s directory.
++ */
+- * The kernel knows nothing about faked hard links, so it would report
++static void remember_opened_link(Extension *extension, const char host_path[PATH_MAX])
+- * @host_path in "/proc/<PID>/fd/<FD>", c.f. readlink_proc_fd().
++{
+- */
++	Tracee *tracee = TRACEE(extension);
+-static void remember_opened_link(Extension *extension, const char host_path[PATH_MAX])
++	Link2SymlinkConfig *config;
+-{
++	char final[PATH_MAX];
+-	Tracee *tracee = TRACEE(extension);
++
+-	Link2SymlinkConfig *config;
++	if (!is_l2s_file(host_path))
+-	char final[PATH_MAX];
++		return;
+ 
+-	if (!is_l2s_file(host_path))
++	config = get_config(extension, false);
+-		return;
++	if (config == NULL || config->final_component[0] == '\0')
+-
++		return;
+-	config = get_config(extension, false);
++
+-	if (config == NULL || config->final_component[0] == '\0')
++	/* Ensure the name that was dereferenced while this path was
+-		return;
++	 * canonicalized is indeed a faked hard link to this very file:
+-
++	 * the tracee may have named the l2s file directly.  */
+-	/* Ensure the name that was dereferenced while this path was
++	if (resolve_faked_hard_link(config->final_component, final) < 0)
+-	 * canonicalized is indeed a faked hard link to this very file:
++		return;
+-	 * the tracee may have named the l2s file directly.  */
++	if (strcmp(final, host_path) != 0)
+-	if (resolve_faked_hard_link(config->final_component, final) < 0)
++		return;
+-		return;
++
+-	if (strcmp(final, host_path) != 0)
++	strcpy(config->pending_link, config->final_component);
+-		return;
++
+-
++	/* The descriptor number is only known at the exit stage, which
+-	strcpy(config->pending_link, config->final_component);
++	 * seccomp lets PRoot skip by default.  */
+-
++	tracee->sysexit_pending = true;
+-	/* The descriptor number is only known at the exit stage, which
++	tracee->restart_how = PTRACE_SYSCALL;
+-	 * seccomp lets PRoot skip by default.  */
++}
+-	tracee->sysexit_pending = true;
++
+-	tracee->restart_how = PTRACE_SYSCALL;
++/**
+-}
++ * When @translated_path is a faked hard-link, replace it with the
+-
++ * point it (internally) points to.
+-/**
++ */
+- * When @translated_path is a faked hard-link, replace it with the
++static void translated_path(Extension *extension, char translated_path[PATH_MAX])
+- * point it (internally) points to.
++{
+- */
++	Tracee *tracee = TRACEE(extension);
+-static void translated_path(Extension *extension, char translated_path[PATH_MAX])
++	char final[PATH_MAX];
+-{
++
+-	Tracee *tracee = TRACEE(extension);
++	/* Don't translate l2s symlinks if call is (un)link */
+-	char final[PATH_MAX];
++	Sysnum sysnum = get_sysnum(tracee, ORIGINAL);
+-
++	if (   sysnum == PR_unlink
+-	/* Don't translate l2s symlinks if call is (un)link */
++	    || sysnum == PR_unlinkat
+-	Sysnum sysnum = get_sysnum(tracee, ORIGINAL);
++	    || sysnum == PR_link
+-	if (   sysnum == PR_unlink
++	    || sysnum == PR_linkat
+-	    || sysnum == PR_unlinkat
++	    || sysnum == PR_rename
+-	    || sysnum == PR_link
++	    || sysnum == PR_renameat
+-	    || sysnum == PR_linkat
++	    || sysnum == PR_renameat2) {
+-	    || sysnum == PR_rename
++		return;
+-	    || sysnum == PR_renameat
++	}
+-	    || sysnum == PR_renameat2) {
++
+-		return;
++	if (should_skip_file_access_due_to_f2fs_bug(tracee, translated_path))
+-	}
++		return;
+ 
+-	if (should_skip_file_access_due_to_f2fs_bug(tracee, translated_path))
++	/* The canonicalization dereferenced the faked hard links this
+-		return;
++	 * path was made of, including its last component when this
+-
++	 * syscall is about to return a descriptor on it.  */
+-	/* The canonicalization dereferenced the faked hard links this
++	if (is_open_syscall(sysnum))
+-	 * path was made of, including its last component when this
++		remember_opened_link(extension, translated_path);
+-	 * syscall is about to return a descriptor on it.  */
++
+-	if (is_open_syscall(sysnum))
++	if (resolve_faked_hard_link(translated_path, final) < 0)
+-		remember_opened_link(extension, translated_path);
++		return;
+ 
+-	if (resolve_faked_hard_link(translated_path, final) < 0)
++	strcpy(translated_path, final);
+-		return;
++	return;
+-
++}
+-	strcpy(translated_path, final);
++
+-	return;
++/**
+-}
++ * Handler for linkat(..., "/proc/X/fd/Y", ..., AT_SYMLINK_FOLLOW)
+-
++ *
+-/**
++ * Returns:
+- * Handler for linkat(..., "/proc/X/fd/Y", ..., AT_SYMLINK_FOLLOW)
++ *    1 if operation was handled successfully
+- *
++ *      (Syscall should be marked as successful without further actions)
+- * Returns:
++ *    0 if this wasn't linkat from /proc//fd
+- *    1 if operation was handled successfully
++ *      (Caller should proceed with usual link2symlink)
+- *      (Syscall should be marked as successful without further actions)
++ *   <0 if operation failed
+- *    0 if this wasn't linkat from /proc//fd
++ *      (Syscall should be marked as failed without further actions)
+- *      (Caller should proceed with usual link2symlink)
++ */
+- *   <0 if operation failed
++static int handle_linkat_from_proc_fd(Tracee *tracee) {
+- *      (Syscall should be marked as failed without further actions)
++	/* Read source path, return if it doesn't belong to /proc  */
+- */
++	char proc_path[128];
+-static int handle_linkat_from_proc_fd(Tracee *tracee) {
++	ssize_t size = read_string(tracee, proc_path, peek_reg(tracee, CURRENT, SYSARG_2), sizeof(proc_path));
+-	/* Read source path, return if it doesn't belong to /proc  */
++	if (size <= 0 || size >= (ssize_t) sizeof(proc_path)) {
+-	char proc_path[128];
++		return 0;
+-	ssize_t size = read_string(tracee, proc_path, peek_reg(tracee, CURRENT, SYSARG_2), sizeof(proc_path));
++	}
+-	if (size <= 0 || size >= (ssize_t) sizeof(proc_path)) {
++	if (compare_paths(proc_path, "/proc") != PATH2_IS_PREFIX) {
+ 		return 0;
+ 	}
+-	if (compare_paths(proc_path, "/proc") != PATH2_IS_PREFIX) {
++
+-		return 0;
++	/* Ensure provided path is symlink to " (deleted)" file  */
+-	}
++	char target_path[PATH_MAX] = {};
+-
++	int status = readlink(proc_path, target_path, sizeof(target_path));
+-	/* Ensure provided path is symlink to " (deleted)" file  */
++	if (status < 10 || status >= (ssize_t) sizeof(target_path)) {
+-	char target_path[PATH_MAX] = {};
++		return 0;
+-	int status = readlink(proc_path, target_path, sizeof(target_path));
++	}
+-	if (status < 10 || status >= (ssize_t) sizeof(target_path)) {
++	if (0 != memcmp(&target_path[status - 10], DELETED_SUFFIX, 10)) {
+ 		return 0;
+ 	}
+-	if (0 != memcmp(&target_path[status - 10], DELETED_SUFFIX, 10)) {
++
+-		return 0;
++	/* Read stats of source file, ensure it is regular file  */
+-	}
++	struct stat stats = {};
+-
++	if (0 != stat(proc_path, &stats)) {
+-	/* Read stats of source file, ensure it is regular file  */
++		return 0;
+-	struct stat stats = {};
++	}
+-	if (0 != stat(proc_path, &stats)) {
++	if (!S_ISREG(stats.st_mode)) {
+ 		return 0;
+ 	}
+-	if (!S_ISREG(stats.st_mode)) {
++
+-		return 0;
++	/* Read path of target file (already translated by proot)  */
+-	}
++	size = read_string(tracee, target_path, peek_reg(tracee, CURRENT, SYSARG_4), PATH_MAX);
+-
++	if (size < 0 || size >= (ssize_t) sizeof(target_path)) {
+-	/* Read path of target file (already translated by proot)  */
++		return 0;
+-	size = read_string(tracee, target_path, peek_reg(tracee, CURRENT, SYSARG_4), PATH_MAX);
++	}
+-	if (size < 0 || size >= (ssize_t) sizeof(target_path)) {
++
+-		return 0;
++	/* Open source file for reading  */
+-	}
++	int source_fd = open(proc_path, O_RDONLY);
+-
++	if (source_fd < 0) {
+-	/* Open source file for reading  */
++		return 0;
+-	int source_fd = open(proc_path, O_RDONLY);
++	}
+-	if (source_fd < 0) {
++
+-		return 0;
++	/* Point of no return, below we no longer are allowed to "return 0",
+-	}
++	 * any errors will be propagated to caller
+-
++	 *
+-	/* Point of no return, below we no longer are allowed to "return 0",
++	 * Delete target file (we'll be replacing it).
+-	 * any errors will be propagated to caller
++	 * Ignore result of unlink, file could or could not exist,
+-	 *
++	 * we'll report failure of open though  */
+-	 * Delete target file (we'll be replacing it).
++	unlink(target_path);
+-	 * Ignore result of unlink, file could or could not exist,
++
+-	 * we'll report failure of open though  */
++	/* Open target file for writing  */
+-	unlink(target_path);
++	int target_fd = open(target_path, O_WRONLY|O_CREAT|O_EXCL, stats.st_mode & 0777);
+-
++	if (target_fd < 0) {
+-	/* Open target file for writing  */
++		status = -errno;
+-	int target_fd = open(target_path, O_WRONLY|O_CREAT|O_EXCL, stats.st_mode & 0777);
++		if (status >= 0)
+-	if (target_fd < 0) {
++			status = -EPERM;
+-		status = -errno;
++		close(source_fd);
+-		if (status >= 0)
++		return status;
+-			status = -EPERM;
++	}
+-		close(source_fd);
++
+-		return status;
++	/* Copy contents of file  */
+-	}
++	char buf[4096];
+-
++	int nread;
+-	/* Copy contents of file  */
++	while (0 != (nread = read(source_fd, buf, sizeof(buf)))) {
+-	char buf[4096];
++		if (nread < 0) {
+-	int nread;
++			status = -errno;
+-	while (0 != (nread = read(source_fd, buf, sizeof(buf)))) {
++			if (status >= 0)
+-		if (nread < 0) {
++				status = -EPERM;
+-			status = -errno;
++			close(source_fd);
+-			if (status >= 0)
++			close(target_fd);
+-				status = -EPERM;
++			return status;
+-			close(source_fd);
++		}
+-			close(target_fd);
++		int pos = 0;
+-			return status;
++		while (pos < nread) {
+-		}
++			int nwrite = write(target_fd, buf + pos, nread - pos);
+-		int pos = 0;
++			if (nwrite <= 0) {
+-		while (pos < nread) {
++				status = -errno;
+-			int nwrite = write(target_fd, buf + pos, nread - pos);
++				if (status >= 0)
+-			if (nwrite <= 0) {
++					status = -EPERM;
+-				status = -errno;
++				close(source_fd);
+-				if (status >= 0)
++				close(target_fd);
+-					status = -EPERM;
++				return status;
+-				close(source_fd);
++			}
+-				close(target_fd);
++			pos += nwrite;
+-				return status;
++		}
+-			}
++	}
+-			pos += nwrite;
++
+-		}
++	/* Copy successful, nothing more to be done for this syscall  */
+-	}
++	close(source_fd);
+-
++	close(target_fd);
+-	/* Copy successful, nothing more to be done for this syscall  */
++	return 1;
+-	close(source_fd);
++}
+-	close(target_fd);
++
+-	return 1;
++/**
+-}
++ * Handler for this @extension.  It is triggered each time an @event
+-
++ * occurred.  See ExtensionEvent for the meaning of @data1 and @data2.
+-/**
++ */
+- * Handler for this @extension.  It is triggered each time an @event
++int link2symlink_callback(Extension *extension, ExtensionEvent event,
+- * occurred.  See ExtensionEvent for the meaning of @data1 and @data2.
++			intptr_t data1, intptr_t data2 UNUSED)
+- */
++{
+-int link2symlink_callback(Extension *extension, ExtensionEvent event,
++	int status;
+-			intptr_t data1, intptr_t data2 UNUSED)
++
+-{
++	switch (event) {
+-	int status;
++	case INITIALIZATION: {
+-
++		/* List of syscalls handled by this extensions.  */
+-	switch (event) {
++		static FilteredSysnum filtered_sysnums[] = {
+-	case INITIALIZATION: {
++			{ PR_link,		FILTER_SYSEXIT },
+-		/* List of syscalls handled by this extensions.  */
++			{ PR_linkat,		FILTER_SYSEXIT },
+-		static FilteredSysnum filtered_sysnums[] = {
++			{ PR_unlink,		FILTER_SYSEXIT },
+-			{ PR_link,		FILTER_SYSEXIT },
++			{ PR_unlinkat,		FILTER_SYSEXIT },
+-			{ PR_linkat,		FILTER_SYSEXIT },
++			{ PR_fstat,		FILTER_SYSEXIT },
+-			{ PR_unlink,		FILTER_SYSEXIT },
++			{ PR_fstat64,		FILTER_SYSEXIT },
+-			{ PR_unlinkat,		FILTER_SYSEXIT },
++			{ PR_fstatat64,		FILTER_SYSEXIT },
+-			{ PR_fstat,		FILTER_SYSEXIT },
++			{ PR_lstat,		FILTER_SYSEXIT },
+-			{ PR_fstat64,		FILTER_SYSEXIT },
++			{ PR_lstat64,		FILTER_SYSEXIT },
+-			{ PR_fstatat64,		FILTER_SYSEXIT },
++			{ PR_newfstatat,	FILTER_SYSEXIT },
+-			{ PR_lstat,		FILTER_SYSEXIT },
++			{ PR_stat,		FILTER_SYSEXIT },
+-			{ PR_lstat64,		FILTER_SYSEXIT },
++			{ PR_stat64,		FILTER_SYSEXIT },
+-			{ PR_newfstatat,	FILTER_SYSEXIT },
++			{ PR_rename,		FILTER_SYSEXIT },
+-			{ PR_stat,		FILTER_SYSEXIT },
++			{ PR_renameat,		FILTER_SYSEXIT },
+-			{ PR_stat64,		FILTER_SYSEXIT },
++			{ PR_renameat2,		FILTER_SYSEXIT },
+-			{ PR_rename,		FILTER_SYSEXIT },
++			FILTERED_SYSNUM_END,
+-			{ PR_renameat,		FILTER_SYSEXIT },
++		};
+-			{ PR_renameat2,		FILTER_SYSEXIT },
++		extension->filtered_sysnums = filtered_sysnums;
+-			FILTERED_SYSNUM_END,
++		return 0;
+-		};
++	}
+-		extension->filtered_sysnums = filtered_sysnums;
++
+-		return 0;
++	case SYSCALL_ENTER_START: {
+-	}
++		/* Forget any dereference that was not consumed by the exit
+-
++		 * stage of the syscall it was made for.  */
+-	case SYSCALL_ENTER_START: {
++		Link2SymlinkConfig *config = get_config(extension, false);
+-		/* Forget any dereference that was not consumed by the exit
++		if (config != NULL)
+-		 * stage of the syscall it was made for.  */
++			config->pending_link[0] = '\0';
+-		Link2SymlinkConfig *config = get_config(extension, false);
++
+-		if (config != NULL)
++		return 0;
+-			config->pending_link[0] = '\0';
++	}
+ 
+-		return 0;
++	case SYSCALL_ENTER_END: {
+-	}
++		Tracee *tracee = TRACEE(extension);
+ 
+-	case SYSCALL_ENTER_END: {
++		switch (get_sysnum(tracee, ORIGINAL)) {
+-		Tracee *tracee = TRACEE(extension);
++		case PR_rename:
+-
++			/*int rename(const char *oldpath, const char *newpath);
+-		switch (get_sysnum(tracee, ORIGINAL)) {
++			 *If newpath is a psuedo hard link decrement the link count.
+-		case PR_rename:
++			 */
+-			/*int rename(const char *oldpath, const char *newpath);
++
+-			 *If newpath is a psuedo hard link decrement the link count.
++			status = decrement_link_count(tracee, SYSARG_2);
+-			 */
++			if (status < 0)
+-
++				return status;
+-			status = decrement_link_count(tracee, SYSARG_2);
++
+-			if (status < 0)
++			break;
+-				return status;
++
+-
++		case PR_renameat:
+-			break;
++		case PR_renameat2:
+-
++			/*int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath);
+-		case PR_renameat:
++			 *If newpath is a psuedo hard link decrement the link count.
+-		case PR_renameat2:
++			 */
+-			/*int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath);
++
+-			 *If newpath is a psuedo hard link decrement the link count.
++			status = decrement_link_count(tracee, SYSARG_4);
+-			 */
++			if (status < 0)
+-
++				return status;
+-			status = decrement_link_count(tracee, SYSARG_4);
++
+-			if (status < 0)
++			break;
+-				return status;
++
+-
++		case PR_unlink:
+-			break;
++			/* If path points a file that is an symlink to a file that begins
+-
++			 *   with PREFIX, let the file be deleted, but also decrement the
+-		case PR_unlink:
++			 *   hard link count, if it is greater than 1, otherwise delete
+-			/* If path points a file that is an symlink to a file that begins
++			 *   the original file and intermediate file too.
+-			 *   with PREFIX, let the file be deleted, but also decrement the
++			 */
+-			 *   hard link count, if it is greater than 1, otherwise delete
++
+-			 *   the original file and intermediate file too.
++			status = decrement_link_count(tracee, SYSARG_1);
+-			 */
++			if (status < 0)
+-
++				return status;
+-			status = decrement_link_count(tracee, SYSARG_1);
++
+-			if (status < 0)
++			break;
+-				return status;
++
+-
++		case PR_unlinkat:
+-			break;
++			/* If this is request to delete directory, don't handle it here.
+-
++			 * directories cannot be hard links.  */
+-		case PR_unlinkat:
++			if ((peek_reg(tracee, CURRENT, SYSARG_3) & AT_REMOVEDIR) != 0)
+-			/* If this is request to delete directory, don't handle it here.
++			{
+-			 * directories cannot be hard links.  */
++				return 0;
+-			if ((peek_reg(tracee, CURRENT, SYSARG_3) & AT_REMOVEDIR) != 0)
++			}
+-			{
++
+-				return 0;
++			/* If path points a file that is a symlink to a file that begins
+-			}
++			 *   with PREFIX, let the file be deleted, but also delete the
+-
++			 *   symlink that was created and decremnt the count that is tacked
+-			/* If path points a file that is a symlink to a file that begins
++			 *   to end of original file.
+-			 *   with PREFIX, let the file be deleted, but also delete the
++			 */
+-			 *   symlink that was created and decremnt the count that is tacked
++
+-			 *   to end of original file.
++			status = decrement_link_count(tracee, SYSARG_2);
+-			 */
++			if (status < 0)
+-
++				return status;
+-			status = decrement_link_count(tracee, SYSARG_2);
++
+-			if (status < 0)
++			break;
+-				return status;
++
+-
++		case PR_link:
+-			break;
++			/* Convert:
+-
++			 *
+-		case PR_link:
++			 *     int link(const char *oldpath, const char *newpath);
+-			/* Convert:
++			 *
+-			 *
++			 * into:
+-			 *     int link(const char *oldpath, const char *newpath);
++			 *
+-			 *
++			 *     int symlink(const char *oldpath, const char *newpath);
+-			 * into:
++			 */
+-			 *
++
+-			 *     int symlink(const char *oldpath, const char *newpath);
++			status = move_and_symlink_path(tracee, SYSARG_1, SYSARG_2);
+-			 */
++			if (status < 0)
+-
++				return status;
+-			status = move_and_symlink_path(tracee, SYSARG_1, SYSARG_2);
++
+-			if (status < 0)
++			break;
+-				return status;
++
+-
++		case PR_linkat:
+-			break;
++			/*
+-
++			 * Handle linkat(..., "/proc/X/fd/Y", ..., AT_SYMLINK_FOLLOW)
+-		case PR_linkat:
++			 */
+-			/*
++			if (peek_reg(tracee, CURRENT, SYSARG_5) & AT_SYMLINK_FOLLOW) {
+-			 * Handle linkat(..., "/proc/X/fd/Y", ..., AT_SYMLINK_FOLLOW)
++				status = handle_linkat_from_proc_fd(tracee);
+-			 */
++				if (status < 0)
+-			if (peek_reg(tracee, CURRENT, SYSARG_5) & AT_SYMLINK_FOLLOW) {
++					return status;
+-				status = handle_linkat_from_proc_fd(tracee);
++				if (status == 1) {
+-				if (status < 0)
++					set_sysnum(tracee, PR_void);
+-					return status;
++					poke_reg(tracee, SYSARG_RESULT, 0);
+-				if (status == 1) {
++					return 0;
+-					set_sysnum(tracee, PR_void);
++				}
+-					poke_reg(tracee, SYSARG_RESULT, 0);
++			}
+-					return 0;
++
+-				}
++			/* Convert:
+-			}
++			 *
+-
++			 *     int linkat(int olddirfd, const char *oldpath,
+-			/* Convert:
++			 *                int newdirfd, const char *newpath, int flags);
+ 			 *
+-			 *     int linkat(int olddirfd, const char *oldpath,
++			 * into:
+-			 *                int newdirfd, const char *newpath, int flags);
++			 *
+-			 *
++			 *     int symlink(const char *oldpath, const char *newpath);
+-			 * into:
++			 *
+-			 *
++			 * Note: PRoot has already canonicalized
+-			 *     int symlink(const char *oldpath, const char *newpath);
++			 * linkat() paths this way:
+ 			 *
+-			 * Note: PRoot has already canonicalized
++			 *   olddirfd + oldpath -> oldpath
+-			 * linkat() paths this way:
++			 *   newdirfd + newpath -> newpath
+-			 *
++			 */
+-			 *   olddirfd + oldpath -> oldpath
++
+-			 *   newdirfd + newpath -> newpath
++			status = move_and_symlink_path(tracee, SYSARG_2, SYSARG_4);
+-			 */
++			if (status < 0)
+-
++				return status;
+-			status = move_and_symlink_path(tracee, SYSARG_2, SYSARG_4);
++
+-			if (status < 0)
++			break;
+-				return status;
++
+-
++		default:
+ 			break;
+-
++		}
+-		default:
++		return 0;
+-			break;
++	}
+-		}
++
+-		return 0;
++	case SYSCALL_EXIT_END: {
+-	}
++		return handle_sysexit_end(extension);
+-
++	}
+-	case SYSCALL_EXIT_END: {
++
+-		return handle_sysexit_end(extension);
++	case GUEST_PATH: {
+-	}
++		/* A new path is about to be canonicalized.  */
+-
++		Link2SymlinkConfig *config = get_config(extension, false);
+-	case GUEST_PATH: {
++		if (config != NULL)
+-		/* A new path is about to be canonicalized.  */
++			config->final_component[0] = '\0';
+-		Link2SymlinkConfig *config = get_config(extension, false);
++
+-		if (config != NULL)
++		return 0;
+-			config->final_component[0] = '\0';
++	}
+ 
+-		return 0;
++	case HOST_PATH: {
+-	}
++		/* Remember how the tracee named the last component of the
+-
++		 * path being canonicalized, that is, before PRoot follows
+-	case HOST_PATH: {
++		 * it -- a faked hard link is a symbolic link.  Only the
+-		/* Remember how the tracee named the last component of the
++		 * first notification describes it, the last one describes
+-		 * path being canonicalized, that is, before PRoot follows
++		 * what it points to.  This is only worth doing when a
+-		 * it -- a faked hard link is a symbolic link.  Only the
++		 * descriptor is about to be opened on that file.  */
+-		 * first notification describes it, the last one describes
++		Link2SymlinkConfig *config;
+-		 * what it points to.  This is only worth doing when a
++
+-		 * descriptor is about to be opened on that file.  */
++		if (!(bool) data2)
+-		Link2SymlinkConfig *config;
++			return 0;
+ 
+-		if (!(bool) data2)
++		if (!is_open_syscall(get_sysnum(TRACEE(extension), ORIGINAL)))
+ 			return 0;
+ 
+-		if (!is_open_syscall(get_sysnum(TRACEE(extension), ORIGINAL)))
++		config = get_config(extension, true);
+-			return 0;
++		if (config == NULL || config->final_component[0] != '\0')
+-
++			return 0;
+-		config = get_config(extension, true);
++
+-		if (config == NULL || config->final_component[0] != '\0')
++		strcpy(config->final_component, (const char *) data1);
+-			return 0;
++
+-
++		return 0;
+-		strcpy(config->final_component, (const char *) data1);
++	}
+ 
+-		return 0;
++	case TRANSLATED_PATH:
+-	}
++		translated_path(extension, (char *) data1);
+-
++		return 0;
+-	case TRANSLATED_PATH:
++
+-		translated_path(extension, (char *) data1);
++	case STATX_SYSCALL:
+-		return 0;
++		link2symlink_handle_statx((struct statx_syscall_state *) data1);
+-
++		return 0;
+-	case STATX_SYSCALL:
++
+-		link2symlink_handle_statx((struct statx_syscall_state *) data1);
++	case READLINK_PROC_FD:
+-		return 0;
++		readlink_proc_fd((struct readlink_proc_fd_state *) data1);
+-
++		return 0;
+-	case READLINK_PROC_FD:
++
+-		readlink_proc_fd((struct readlink_proc_fd_state *) data1);
++	case INHERIT_PARENT:
+-		return 0;
++		/* The configuration only describes the syscall being
+-
++		 * processed, hence it can't be shared with the child.  */
+-	case INHERIT_PARENT:
++		return 1;
+-		/* The configuration only describes the syscall being
++
+-		 * processed, hence it can't be shared with the child.  */
++	case INHERIT_CHILD:
+-		return 1;
++		/* Nothing to inherit: the child's configuration is
+-
++		 * allocated when it is needed.  */
+-	case INHERIT_CHILD:
++		return 0;
+-		/* Nothing to inherit: the child's configuration is
++
+-		 * allocated when it is needed.  */
++	default:
+ 		return 0;
+-
++	}
+-	default:
++}
+-		return 0;
++
+-	}
++undefined
+-}
++undefined
+-
++undefined
