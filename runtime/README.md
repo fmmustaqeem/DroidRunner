@@ -42,7 +42,7 @@ PROOT=/path/to/patched/proot ROOTFS=/path/to/ubuntu-rootfs \
 ```
 
 Run it as an unprivileged host user; root bypasses the mode-555 permission
-fixture. The test invokes guest `link(2)` under `-0 -l` twice. A
+fixture. The test invokes guest `linkat(2)` via coreutils `ln` under `-0 -l` twice. A
 non-writable but openable `PROOT_L2S_DIR` must fail at the subsequent
 `renameat(2)` with `EACCES` (13), exercising the patched errno propagation.
 A missing `PROOT_L2S_DIR` must report `ENOENT` (2). It creates only
