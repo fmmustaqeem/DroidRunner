@@ -61,6 +61,22 @@ object RunnerCommand {
         )
 
     /**
+     * Terminal-only invocation. The official runner's command is deliberately
+     * left unchanged: Android may deny native hard links, while PRoot's -l
+     * extension emulates them with symbolic links for guest applications such
+     * as dpkg. Keep this opt-in scoped to the interactive shell.
+     */
+    internal fun terminalProotCommand(
+        nativeDir: String,
+        prootTmpDir: String,
+        dir: File,
+        command: List<String>,
+    ): ProcessBuilder = prootCommand(nativeDir, prootTmpDir, dir, command).also { builder ->
+        val args = builder.command()
+        builder.command(args.take(1) + "-l" + args.drop(1))
+    }
+
+    /**
      * Every argument and variable below was arrived at by debugging on a real
      * phone, and dropping one breaks jobs on device while the build stays
      * green — hence RunnerCommandTest, which pins each of them with the reason
