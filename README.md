@@ -1030,3 +1030,54 @@ and tests), and verify the pinned runtime build includes the extension. Only
 then consider a source patch and a later device test. Do not perform native
 hard-link tests, dpkg operations, APK builds, Actions runs, merges or
 deployments without the appropriate authorization.
+
+
+## Upstream dependency assessment (2026-11-26)
+
+Read the actual upstream patches for the six relevant commits, including
+`4f8c813a7f82` and `215fa9f90aea`, rather than relying only on their
+titles.
+
+### Findings that affect backport scope
+
+- `4f8c813a7f82` is a high-priority F2FS fix. Its commit description gives a
+  concrete Android F2FS failure: `cp -a` can enumerate emulation internals in
+  an unsafe order, causing a self-referential intermediate and subsequent
+  `EEXIST` / missing-file errors. It changes both link2symlink and getdents
+  handling, and adds chain-syscall coordination; it is not a safe one-file
+  cherry-pick without checking its prerequisite interfaces.
+- `482e5bdb8b1a` prevents rename from overwriting an occupied chain-count
+  filename and losing data. It changes link2symlink rename/count handling.
+- `cfcb6233b20d` adds protection for internal chain files during unlink and
+  rename, and depends on path/chain recognition behavior in link2symlink.
+- `215fa9f90aea` repairs stale intermediate paths after directory renames.
+  It changes the extension event contract so a symbolic-link dereference
+  callback may substitute the link content; this requires matching core
+  extension-interface changes, not just copying the extension file.
+- `5fcbf10f0663` resolves intermediate files consistently for statx,
+  getdents and O_NOFOLLOW. Its test report explicitly identifies tar and
+  dpkg-deb failures before the fix, and reports Android 14 ARM64 testing.
+- `bffb58da8b3a` fixes raw -1 versus -errno propagation for host operations.
+  This is particularly useful for truthful diagnosis of EACCES/ENOENT.
+- `8f1029094bea` is required if the Android NDK build uses Clang 21 or later:
+  upstream reproduced a PRoot crash on Android 15 / Clang 21.1.8 when
+  link2symlink accesses a faked link.
+- `bd16a7d6b746` prevents the extension acting on untranslated guest paths.
+  It is a safety/correctness guard in the syscall-entry callback.
+- `c6880fcf8f4b` addresses linkat(AT_SYMLINK_FOLLOW) and GNU/Termux ln
+  behavior. Its relevance depends on the guest commands used, but it belongs
+  in a complete compatibility review.
+
+### Backport decision
+
+Do not cherry-pick only the F2FS getdents change or only enable `-l`.
+The fixes touch shared extension APIs, syscall chaining, getdents filtering,
+link-count bookkeeping and rename/unlink semantics. A coherent backport must
+be derived from the ordered upstream history and built/tested as a set.
+
+The current evidence supports the conclusion that the existing pinned
+revision is too old to call the Terminal `-l` candidate safe on this F2FS
+rootfs. No upstream patch has been copied into this fork, no runtime build
+configuration has been changed, and no tests or device operations have been
+run. Next inspect the pinned runtime's actual source/build manifests and
+commit ancestry, then produce a file-by-file dependency map before editing.
