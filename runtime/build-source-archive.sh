@@ -41,11 +41,11 @@ PROOT_COMMIT="$(read_pin PROOT_COMMIT)"
 # These values control remote source selection and archive contents.
 # Reject incomplete or malformed pins before touching the output directory.
 [[ "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || die "invalid release tag: use a single safe path component"
-[[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \\
+[[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
     || die "invalid source repository: expected owner/repository"
 [ -n "$TALLOC_VERSION" ] || die "cannot read TALLOC_VERSION from build-proot.sh"
 [[ "$TALLOC_SHA256" =~ ^[[:xdigit:]]{64}$ ]] || die "cannot read a valid TALLOC_SHA256 from build-proot.sh"
-[[ "$PROOT_REPO" =~ ^https://github\\.com/[^/]+/[^/]+(\\.git)?$ ]] || die "cannot read a valid PROOT_REPO from build-proot.sh"
+[[ "$PROOT_REPO" =~ ^https://github\.com/[^/]+/[^/]+(\.git)?$ ]] || die "cannot read a valid PROOT_REPO from build-proot.sh"
 [[ "$PROOT_COMMIT" =~ ^[[:xdigit:]]{40}$ ]] || die "cannot read a valid PROOT_COMMIT from build-proot.sh"
 
 rm -rf "$STAGE"
