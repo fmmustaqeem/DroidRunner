@@ -1,9 +1,7 @@
 --- a/src/extension/link2symlink/link2symlink.c
 +++ b/src/extension/link2symlink/link2symlink.c
-@@ -1,1 +1,3 @@
-+/* DroidRunner modification: correct link2symlink errno propagation; changed 2026-11-27. */
-+
- #include <stdio.h>
+@@ -0,0 +1,2 @@
+
 @@ -294,7 +296,7 @@
  		? readlink(symlink, value, PATH_MAX)
  		: readlinkat(dir_fd, name, value, PATH_MAX);
