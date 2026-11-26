@@ -1,3 +1,7 @@
+# HISTORICAL DRAFT — SUPERSEDED
+# The approved build-time patch is now runtime/patches/proot-link2symlink-errno.patch.
+# This file is retained as the original review proposal and is not consumed by the build.
+
 # Proposed pinned-source backport only — NOT APPLIED
 # Base: termux/proot 7266fb3e8516535682f5a9c8f3a7e70f6506eddb
 # File: src/extension/link2symlink/link2symlink.c
