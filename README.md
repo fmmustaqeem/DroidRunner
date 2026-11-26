@@ -1170,3 +1170,62 @@ Read-only review against pinned PRoot `7266fb3e8516535682f5a9c8f3a7e70f6506eddb`
 ### Current limits
 
 This review is source-level only. No upstream runtime patches have been applied to DroidRunner; no Kotlin tests, APK build, GitHub Actions, merge, deployment, installation, or device retry has been performed. Hard-link tests are intentionally excluded on this Android device.
+
+## Ordered PRoot backport preparation (2026-11-26)
+
+The upstream history was compared directly from pinned revision
+`7266fb3e8516535682f5a9c8f3a7e70f6506eddb` to upstream head
+`c0b2d098469a64a88c0a7e240b1a1dc252988cdb`. Full commit IDs and their
+reviewed roles:
+
+1. `bd16a7d6b7462f754836c75503d12c00f9b770f5` — stop link2symlink from
+   processing syscall arguments when path translation has already failed.
+2. `bffb58da8b3a3765298d6cd82c3fdde97262249e` — convert failed host
+   filesystem calls from raw `-1` to the actual `-errno`; preserve
+   meaningful EACCES/ENOENT/EEXIST results.
+3. `8f1029094bea9b82c71d0fe928e39f95fa7aa58b` — fix unsigned-index
+   pointer arithmetic that can crash under Clang 21.
+4. `c6880fcf8f4bbc85e200cc04589062754805fbc9` — preserve link-count
+   bookkeeping when `linkat(AT_SYMLINK_FOLLOW)` follows an emulated link.
+5. `5fcbf10f06636c5ab3125974d527f0433e2a672f` — resolve chain
+   intermediates consistently for statx, getdents, readlink and
+   O_NOFOLLOW; upstream regression notes cover tar and dpkg-deb.
+6. `4f8c813a7f820ac1b5fcd49967ae99e16ee9d428` — coordinate hidden
+   internal-file filtering across link2symlink, hidden-files and syscall
+   chain handling; directly addresses unsafe F2FS directory enumeration.
+7. `482e5bdb8b1a47e2626128bc574c81566f2b50ca` — refuse to overwrite an
+   occupied link-count chain filename.
+8. `cfcb6233b20defb4c9f9ed4bd9eb10a6485afd81` — protect internal chain
+   files from destructive unlink/rename operations.
+9. `215fa9f90aeaac70bf9a6580997449cef13c29bf` — repair chains after
+   directory renames; this adds a mutable symlink-dereference extension
+   event contract and therefore requires matching core API changes.
+
+This is the upstream chronological candidate sequence, **not yet a
+validated cherry-pick sequence**. Before applying it, compare every patch
+against the pinned tree and resolve prerequisites together. In particular:
+
+- The F2FS directory-listing correction is a coordinated multi-file
+  change: `link2symlink.c`, `hidden_files.c`, and
+  `src/syscall/chain.c/.h`, with regression tests. It must not be reduced
+  to copying one extension source file.
+- The directory-rename repair must include its matching
+  `extension.h` event-contract change and all related callback/core
+  handling.
+- The Clang 21 fix is conditional on the actual NDK/Clang used by the
+  runtime. DroidRunner's build script receives `ANDROID_NDK_ROOT`
+  externally; the compiler version for the target APK is still unknown.
+- The dpkg `status-old` hard-link backup is not proven fixed by the
+  tar/dpkg-deb intermediate-file correction. The relevant acceptance
+  coverage must separately include the emulated `link()` operation and
+  its subsequent rename/unlink/link-count lifecycle in a controlled
+  development environment. No hard-link test will be run on the user's
+  Android device.
+
+### Current decision
+
+Do not apply a partial upstream patch, change `PROOT_L2S_DIR`, run
+GitHub Actions, build an APK, or retry dpkg on-device at this stage.
+Next implementation work must start from a reviewed patch set against
+the exact pinned source, with the compiler version recorded and upstream
+regression tests retained. This update is documentation only.
