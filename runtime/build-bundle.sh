@@ -25,6 +25,7 @@ UBUNTU_SERIES="${UBUNTU_VERSION%.*}"
 BUNDLE_NAME="droidrunner-runtime-arm64.tar.gz"
 # Written offer plus the package list; see SOURCE-OFFER.txt below.
 OFFER_NAME="SOURCE-OFFER.txt"
+SOURCE_REPOSITORY="${GITHUB_REPOSITORY:-m96-chan/DroidRunner}"
 
 die() {
     echo "ERROR: $*" >&2
@@ -150,7 +151,7 @@ any of them, the corresponding source is obtainable with:
 against Ubuntu's archive, which is where these binaries came from unmodified.
 
 If that archive no longer carries a version listed here, write to the address
-on https://github.com/m96-chan/DroidRunner and the source for any package in
+on https://github.com/$SOURCE_REPOSITORY and the source for any package in
 this bundle will be provided, at no more than the cost of distribution, for at
 least three years from the date this bundle was published.
 
