@@ -1767,3 +1767,42 @@ reaches the Android host permission boundary despite guest uid 0;
 otherwise it is inconclusive.
 
 No device test or runtime code change was made in this review.
+
+## Test-harness refinement: guest DAC versus Android host policy (2026-11-26)
+
+The pinned PRoot CLI documents `-0` as fake-root privilege emulation and
+`-i uid:gid` as identity substitution. The fake-id0 extension can
+temporarily override host-path mode bits while translating operations
+when fake effective uid is 0. Therefore a read-only directory created
+and chmod'ed inside a `-0` guest is not a reliable way to force the
+Android host's rename/symlink calls to fail: PRoot may temporarily make
+the host path writable.
+
+A useful two-part disposable regression harness should separate these
+cases:
+
+1. **Errno-control case (no `-0`):** run a dedicated `proot -l`
+   process without fake-root mode; create a test directory and source
+   file, chmod that directory to 0555, then ask a tiny test program to
+   call the *guest* `link()` syscall. Since PRoot's host process remains
+   the Android app UID and owns the directory, this should exercise a
+   genuine host DAC denial. Verify EACCES and verify the source still
+   exists with unchanged contents. This is an errno/control test, not
+   a simulation of dpkg's fake-root execution.
+
+2. **Actual-mode observation (`-0 -l`):** repeat only in a separate
+   disposable directory using the same flags as the real terminal.
+   Record whether PRoot's emulated link succeeds or fails and, if it
+   fails, the exact guest errno. Do not infer the underlying host
+   syscall from the guest errno alone. If it succeeds, that only shows
+   fake-root permission emulation bypassed the test directory's DAC
+   restriction; it does not prove SELinux is permissive.
+
+The fixture must be prepared and removed within a uniquely named
+temporary directory, with cleanup in a finally-style path. It must not
+touch dpkg's database, alter SELinux, use a raw host hard-link syscall,
+or change permissions outside its own fixture. A definitive SELinux
+diagnosis still needs syscall-level host errno evidence from a narrowly
+instrumented PRoot build or equivalent platform diagnostics.
+
+No harness was added or executed; this is a source-derived test plan.
