@@ -131,6 +131,7 @@ EOF
 # exactly that, so what must be there is checked before it is sealed.
 for required in \
     "proot/proot/src/GNUmakefile" \
+    "proot/proot/COPYING" \
     "talloc/talloc-$TALLOC_VERSION.tar.gz" \
     "droidrunner/build-proot.sh" \
     "droidrunner/talloc-answers.txt" \
