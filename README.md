@@ -2002,3 +2002,18 @@ Revised order: finish and test the narrowly scoped `bffb58d`
 errno correction first; treat `03aea` as a separate design
 backport requiring a fresh diff authored against the pinned file and
 its own fixture tests. Neither production patch has been applied.
+
+
+## Exact `bffb58d` backport map against pinned `link2symlink.c`
+
+The pinned-source adaptation is confined to `src/extension/link2symlink/link2symlink.c`:
+
+1. In `my_readlink()` (around pinned lines 293-298), change the failed host `readlink/readlinkat` return from raw `size` (`-1`) to `-errno`.
+2. In `move_and_symlink_path()`, convert each failed host wrapper/direct host symlink result to `-errno`: `l2s_rename` (first and subsequent link paths), `l2s_symlink`, `l2s_unlink`, and the direct `symlink(intermediate, original)` call. Do not convert `notify_extensions()` or `read_path()` statuses; those already use the extension's negative-status convention.
+3. In the final target-symlink block, preserve a negative `read_path()` result unchanged. Only translate `symlink()` failure to `-errno`, then call `decrement_link_count()` on failure. This avoids replacing a meaningful status with stale `errno`.
+4. In `decrement_intermediate_count()`, convert failures from `l2s_rename`, `l2s_unlink`, and `l2s_symlink` to `-errno` in both the remaining-links and last-link branches.
+5. In `decrement_removed_link_count()`, compare the returned status to `-EACCES` rather than inspecting ambient `errno`.
+
+No wrapper signature or shared PRoot API change is required. The upstream `tests/link.c` and `test-b1e55743.sh` are a separate test adaptation; their `-l` guest `link()` call is suitable for a disposable PRoot fixture, but it must not be run as a raw host hard-link probe. The read-only fixture branch's expected `13` is synthetic when the test process is fake-root, so it does not demonstrate an Android SELinux denial.
+
+**Current disposition:** exact patch map reviewed; runtime source still unchanged. Next implementation step would be to apply only this errno patch, inspect the complete diff, then run the upstream emulated-link regression in an isolated fixture. No Actions, build, or device test.
