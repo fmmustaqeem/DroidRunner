@@ -84,6 +84,7 @@ echo "$TALLOC_SHA256  $talloc_archive" | sha256sum -c - >/dev/null \
 cp -r "$SCRIPT_DIR/patches" "$STAGE/droidrunner/patches"
 cp "$SCRIPT_DIR/build-proot.sh" "$STAGE/droidrunner/"
 cp "$SCRIPT_DIR/talloc-answers.txt" "$STAGE/droidrunner/"
+cp -r "$SCRIPT_DIR/tests" "$STAGE/droidrunner/"
 mkdir -p "$STAGE/droidrunner/licenses"
 cp "$SCRIPT_DIR/licenses/GABE-GPL-2.0.txt" "$STAGE/droidrunner/licenses/"
 cp "$SCRIPT_DIR/README.md" "$STAGE/droidrunner/" 2>/dev/null || true
@@ -137,6 +138,7 @@ for required in \
     "talloc/talloc-$TALLOC_VERSION.tar.gz" \
     "droidrunner/build-proot.sh" \
     "droidrunner/talloc-answers.txt" \
+    "droidrunner/tests/test-link2symlink-errno.sh" \
     "droidrunner/licenses/GABE-GPL-2.0.txt" \
     "droidrunner/patches/string-header.patch" \
     "droidrunner/patches/proot-link2symlink-errno.patch" \
