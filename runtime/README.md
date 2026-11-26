@@ -34,7 +34,7 @@ script. CI runs this step automatically before assembling the APK.
 A disposable regression test is available at
 `runtime/tests/test-link2symlink-errno.sh`. Run it in an environment where
 the patched PRoot executable can be launched and the Ubuntu rootfs contains
-`/usr/bin/python3`:
+the standard coreutils commands `touch`, `ln`, and `rm`:
 
 ```bash
 PROOT=/path/to/patched/proot ROOTFS=/path/to/ubuntu-rootfs \
