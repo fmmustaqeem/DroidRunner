@@ -79,7 +79,7 @@ private class TerminalSession(
 
     fun start() {
         check(runtime.installed) { "Linux runtime is not installed." }
-        val command = RunnerCommand.prootCommand(
+        val command = RunnerCommand.terminalProotCommand(
             nativeDir = nativeLibraryDir,
             prootTmpDir = java.io.File(cacheDir, "proot-tmp").apply { mkdirs() }.absolutePath,
             dir = runtime.runtimeDir,
