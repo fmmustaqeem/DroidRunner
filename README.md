@@ -841,13 +841,17 @@ This section records FM's device-side observations separately from upstream proj
 | dpkg status backup | `dpkg --configure -a` failed while creating `/var/lib/dpkg/status-old` with `Permission denied` | Known blocker |
 | Core command availability | In the earlier command lookup, `python3`, `pip3`, `ffmpeg`, and `espeak-ng` were not found in PATH | Historical observation |
 | Hard-link creation | Hard-link creation had already been tested and was denied in this PRoot/filesystem environment | Previously tested; do not repeat without a specific reason |
-| Latest permission/stat probe | A probe was run for `id`, write access to `/var/lib/dpkg/status`, dpkg version, and ownership/modes of `/var/lib/dpkg` and `status`; the complete output is not yet recorded here | Output pending |
+| Latest permission/stat probe | UID/GID 0; `/var/lib/dpkg` mode 0700 root:root; `status` mode 0600 root:root; directory write check reported writable; root mount shown as F2FS read-write | Observed 26 Nov 2026 |
+| Mount and SELinux context | No separate `/var/lib/dpkg` mount entry was found; both directory and status showed SELinux label `u:object_r:app_data_file:s0:c55,c258,c512,c768`; SELinux mode could not be queried | Observed; SELinux enforcement state unknown |
+| Ordinary file create / rename | `touch /var/lib/dpkg/fm-write-test` exit 0; rename to `fm-rename-test` exit 0; test files removed; original `status` and `status-new` remained | PASS, 26 Nov 2026 |
+| Current dpkg metadata | dpkg 1.22.6 (arm64); architecture `arm64`; `dpkg --audit` produced no reported audit entries; `status` 126334 bytes mode 0600; `status-new` 126334 bytes mode 0644; no `status-old` present | Observed 26 Nov 2026 |
+| Backup-operation hypothesis | Ordinary create/rename work, while a previously recorded hard-link test was denied. This is consistent with dpkg's status backup requiring a hard-link operation, but the exact failing syscall has not been captured in this session | Strong hypothesis; not yet independently confirmed |
 
-### Next diagnostic rule
+### Current diagnosis and safe next step
 
-1. Preserve the above results and avoid rerunning completed checks.
-2. First capture the complete output of the latest permission/stat probe.
-3. Diagnose why dpkg cannot create `status-old`; do not assume that UID 0 inside PRoot implies host-level filesystem permissions.
-4. Do not run package upgrades, reinstall Ubuntu, or repeat `dpkg --configure -a` until the write-permission cause is understood.
-5. Record each new test with its exact command, full output, device/runtime context, and date. Mark a result as current only after a fresh run.
+1. Ordinary directory write and same-directory rename both succeeded. Do not repeat those checks without a changed environment.
+2. The earlier hard-link denial plus dpkg's backup behavior makes hard-link support the leading explanation for the `status-old` error; this remains a hypothesis until the exact operation is independently isolated.
+3. Do not run `dpkg --configure -a`, package upgrades, package reinstalls, or modify/delete `status` / `status-new` while the cause remains unresolved.
+4. Next investigation should inspect the PRoot invocation/runtime configuration and the prior hard-link test evidence. Any further test must be narrowly scoped, reversible, and avoid the dpkg database.
+5. Record each new test with exact command, full output, device/runtime context, and date. Do not use GitHub Actions for these checks.
 
