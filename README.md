@@ -1081,3 +1081,32 @@ rootfs. No upstream patch has been copied into this fork, no runtime build
 configuration has been changed, and no tests or device operations have been
 run. Next inspect the pinned runtime's actual source/build manifests and
 commit ancestry, then produce a file-by-file dependency map before editing.
+
+
+## Pinned runtime build inclusion verified (2026-11-26)
+
+The pinned upstream tree was fetched by exact commit
+`7266fb3e8516535682f5a9c8f3a7e70f6506eddb` and inspected read-only.
+
+Confirmed directly from that revision:
+
+- `src/GNUmakefile` includes
+  `extension/link2symlink/link2symlink.o` in the PRoot object list.
+- The same revision's `src/cli/proot.h` registers `--link2symlink` and
+  declares its option handler.
+- The same revision's `src/extension/link2symlink/link2symlink.c` contains
+  the implementation and `PROOT_L2S_DIR` handling.
+- DroidRunner's `runtime/build-proot.sh` checks out this exact commit and
+  invokes `make -C "$PROOT_SRC/src" ... proot`, so the extension is included
+  in the native runtime build. No extra build flag is needed to include it;
+  runtime activation still requires the Terminal's `-l` option.
+
+This closes the earlier source/build-manifest uncertainty. It does **not**
+close the F2FS compatibility gate: the pinned extension predates the later
+F2FS chain-integrity and Clang 21 fixes. The actual NDK version is supplied
+externally through `ANDROID_NDK_ROOT`; the script itself does not pin a
+version, so Clang 21 applicability to a particular APK build remains
+unconfirmed.
+
+No build, test, runtime replacement, APK, device operation, Actions run,
+merge or deployment was performed.
