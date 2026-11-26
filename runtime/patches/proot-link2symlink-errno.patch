@@ -21,7 +21,7 @@
  		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) original, (intptr_t) final);
  		if (status < 0)
  			return status;
-@@ -586,10 +588,10 @@
+@@ -586,12 +588,12 @@
  		/* Symlink the intermediate to the final file.  */
  		status = l2s_symlink(final, intermediate);
  		if (status < 0)
@@ -79,7 +79,7 @@
  		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) final, (intptr_t) new_final);
  		if (status < 0)
  			return status;
-@@ -713,16 +712,16 @@
+@@ -713,19 +712,19 @@
  		/* Symlink the intermediate to the final file.  */
  		status = l2s_unlink(intermediate);
  		if (status < 0)
