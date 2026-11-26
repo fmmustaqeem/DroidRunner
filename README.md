@@ -1143,3 +1143,30 @@ repair.
 
 No upstream source was copied into DroidRunner in this step. No build,
 test, device operation, Actions run, merge or deployment was performed.
+
+
+## Terminal link2symlink upstream compatibility review (2026-11-26)
+
+Read-only review against pinned PRoot `7266fb3e8516535682f5a9c8f3a7e70f6506eddb` and upstream `c0b2d098469a64a88c0a7e240b1a1dc252988cdb`.
+
+### Findings
+
+- The terminal-only `-l` switch is necessary to activate the already-compiled link2symlink extension; it is not, by itself, a verified dpkg fix.
+- The dpkg `status-old` failure occurs while dpkg creates a hard-link backup. The extension must correctly emulate the link operation and subsequent link-count, rename and unlink lifecycle.
+- Upstream commit `5fcbf10f0663` fixes intermediate-file handling for statx/getdents/readlink/O_NOFOLLOW. Its test history explicitly includes tar and `dpkg-deb -b`; it is relevant to package/archive workflows, but does not alone prove the `status-old` operation is fixed.
+- Upstream commit `4f8c813a7f82` is especially relevant to Android F2FS: hidden chain files previously appeared in directory listings and could be copied/archived in an unsafe order. Its test notes specifically report Android 15 F2FS and `cp -a` failures caused by that ordering, and validate corrected listing behavior.
+- The related fixes are cross-file, not safe as isolated cherry-picks: `4f8c813a7f82` coordinates `link2symlink.c`, `hidden_files.c`, and syscall-chain APIs; `cfcb6233b20d` protects chain files during unlink/rename; `215fa9f90aea` adds extension callback/path-repair behavior for renamed directories; `482e5bdb8b1a` prevents overwriting occupied link-count files.
+- Additional relevant correctness fixes include `bffb58da8b3a` (propagate real errno), `bd16a7d6b746` (do not act on untranslated paths), and `c6880fcf8f4b` (linkat with AT_SYMLINK_FOLLOW). `8f1029094bea` is specifically important if the runtime is compiled with Clang 21; the DroidRunner build's actual NDK/compiler version has not been verified.
+- Do not set `PROOT_L2S_DIR` as a workaround without a separate design review. Leaving it unset keeps intermediates beside their files; setting it introduces a persistent backing-directory lifecycle and requires the directory to exist before PRoot starts.
+
+### Backport plan — not yet applied
+
+1. Pin and record the exact PRoot source revision and Android NDK/Clang used by the runtime build.
+2. Backport the complete, dependency-aware link2symlink/getdents/hidden-files/syscall-chain change set, preserving upstream tests and API changes. Do not cherry-pick only `link2symlink.c` or turn on extra environment variables as a substitute.
+3. Include the errno, failed-translation and linkat-follow fixes; include the Clang 21 pointer fix only if the selected compiler requires it (or retain it as a low-risk upstream correctness fix after review).
+4. Build and test in a controlled development environment first: link/unlink/rename lifecycle, getdents filtering, tar, cp -a, dpkg-deb, and dpkg package install/remove. These are planned tests, not results from this device.
+5. Only after source review and explicit approval, produce a test APK. Device validation remains separate; no dpkg command or hard-link probe has been run on the user's phone.
+
+### Current limits
+
+This review is source-level only. No upstream runtime patches have been applied to DroidRunner; no Kotlin tests, APK build, GitHub Actions, merge, deployment, installation, or device retry has been performed. Hard-link tests are intentionally excluded on this Android device.
