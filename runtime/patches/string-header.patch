@@ -2,9 +2,10 @@ diff --git a/src/extension/ashmem_memfd/ashmem_memfd.c b/src/extension/ashmem_me
 index df3f3b5..632e5e6 100644
 --- a/src/extension/ashmem_memfd/ashmem_memfd.c
 +++ b/src/extension/ashmem_memfd/ashmem_memfd.c
-@@ -1,4 +1,7 @@
+@@ -0,0 +1,2 @@
 +/* DroidRunner modification: explicitly include string.h; changed 2026-11-27. */
 +
+@@ -3,4 +5,5 @@
  #include <stdlib.h>
 +#include <string.h>
  #include <signal.h>
