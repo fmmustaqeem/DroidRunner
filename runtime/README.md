@@ -29,6 +29,26 @@ is adapted from the [Godot Android Editor Build Environment (GABE)][gabe]
 proot build. The pinned proot commit and talloc version live at the top of the
 script. CI runs this step automatically before assembling the APK.
 
+## Testing link2symlink errno propagation
+
+A disposable regression test is available at
+`runtime/tests/test-link2symlink-errno.sh`. Run it in an environment where
+the patched PRoot executable can be launched and the Ubuntu rootfs contains
+`/usr/bin/python3`:
+
+```bash
+PROOT=/path/to/patched/proot ROOTFS=/path/to/ubuntu-rootfs \
+  bash runtime/tests/test-link2symlink-errno.sh
+```
+
+The test invokes guest `link(2)` under `-0 -l` twice. A pre-existing but
+unreadable `PROOT_L2S_DIR` must report `EACCES` (13), and a missing
+`PROOT_L2S_DIR` must report `ENOENT` (2). It creates only disposable
+temporary directories and does not call the host's hard-link syscall directly,
+modify the dpkg database, or change permissions outside its temporary fixture.
+The test is not a substitute for running the built APK on the target Android
+device or retrying the original dpkg operation.
+
 ## Building the bundle (`build-bundle.sh`)
 
 Produces `droidrunner-runtime-arm64.tar.gz` + `runtime-manifest.json`:
