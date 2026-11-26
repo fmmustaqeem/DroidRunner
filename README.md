@@ -959,3 +959,29 @@ the option registration and build inclusion, and map the upstream regression
 tests to the fork's build. No patch, runtime rebuild, APK build, device
 installation, dpkg operation, hard-link test, or GitHub Actions run has been
 performed. Keep the user's no-hard-link-test constraint in force.
+
+## Terminal-only PRoot link emulation implementation (2026-11-26)
+
+A source-only change has been committed on
+`fix/terminal-link2symlink-2026-11-26` (based on
+`fix/restart-terminal-shell-2026-11-14`):
+
+- Added `RunnerCommand.terminalProotCommand()`, which derives the existing
+  PRoot invocation and inserts `-l` immediately after the native executable,
+  before all PRoot options and the guest command.
+- Switched only `TerminalScreen.TerminalSession` to this Terminal-specific
+  invocation. The shared `RunnerCommand.prootCommand()` remains unchanged,
+  so GitHub Runner configure/remove/run paths do not opt into link emulation.
+- Added `TerminalProotCommandTest` to assert that Terminal differs from the
+  ordinary invocation only by the `-l` option, that the option precedes
+  `/usr/bin/env`, and that the official Runner invocation does not contain
+  `-l`.
+
+This is an implementation candidate, **not a confirmed dpkg fix**. The
+pinned PRoot revision is older than several upstream link2symlink and F2FS
+fixes listed above. The new Kotlin tests have been added but have not been
+executed. No PRoot runtime source, NDK build, APK, device installation, dpkg
+operation, hard-link test, GitHub Actions run, or deployment was performed.
+The next compatibility gate is to verify that the pinned PRoot build includes
+the link2symlink extension and to assess the relevant upstream fixes before
+asking the device to retry dpkg. Preserve the no-hard-link-test constraint.
