@@ -2043,3 +2043,16 @@ Reviewed the pinned helper implementations at `7266fb3e`:
 - `my_readlink()` already translates `l2s_entry()` failure to `-errno`; the draft changes only the raw `readlink/readlinkat` failure branch.
 
 This confirms that translating the affected wrapper failures to `-errno` is consistent with the pinned helper contract, rather than accidentally negating an already-negative errno. This is a source-level review only; it does not establish the actual Android SELinux failure point or prove dpkg will succeed. No runtime source edits, build, tests, Actions, or device operations were performed.
+
+
+## Pinned PRoot errno backport is now wired into the build (2026-11-26)
+
+With the user's explicit approval, the narrow errno correction has been added as a build-time patch against the pinned `termux/proot@7266fb3e8516535682f5a9c8f3a7e70f6506eddb` source:
+- Production patch: `runtime/patches/proot-link2symlink-errno.patch`.
+- `runtime/build-proot.sh` now applies it immediately after `string-header.patch` and before compiling PRoot.
+- Scope is limited to `link2symlink.c`: `my_readlink()`, `move_and_symlink_path()`, and `decrement_link_count()`. It preserves negative errno values from the POSIX-style wrappers and avoids overwriting a negative `read_path()` status with stale `errno`.
+- No changes were made to the official runner command or its `-l` separation; this is a build-time PRoot source correction used by the runtime build script.
+
+Patch application was validated at source level: all 7 unified-diff hunks match the exact pinned source, their declared old/new line counts agree, and applying them reconstructs the intended 1,340-line patched file exactly. The build hook is present. **No NDK build, APK build, GitHub Actions run, or device test has been run.** Therefore this is an implemented source/build-script change, not proof that Android dpkg's `status-old` operation now succeeds. Next verification must be a controlled local build and disposable `proot -l` fixture, followed by the actual Android terminal test only when separately approved.
+
+Commits: patch `0ac1ff92b6caf07acd31be4415a97c21098a3457`; build integration `f62aa1ac0157683454f0b088d18d45e318f64db4` (patch file subsequently corrected and validated in `75f870810c1b7377a153507adf910c461fc5c725` and `0ac1ff92b6caf07acd31be4415a97c21098a3457`).
