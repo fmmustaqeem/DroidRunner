@@ -25,6 +25,13 @@ class TerminalProotCommandTest {
         assertEquals(guestCommand, command.takeLast(guestCommand.size))
     }
 
+    @Test fun terminalDiffersFromRunnerOnlyByTheLinkEmulationOption() {
+        val runner = RunnerCommand.prootCommand(
+            nativeDir, cacheTmp, runtimeDir, guestCommand,
+        ).command()
+        assertEquals(runner.take(1) + "-l" + runner.drop(1), terminalInvocation().command())
+    }
+
     @Test fun terminalKeepsTheHostRuntimeConfiguration() {
         val env = terminalInvocation().environment()
         assertEquals("$nativeDir/libproot-loader.so", env["PROOT_LOADER"])
