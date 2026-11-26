@@ -41,8 +41,9 @@ PROOT=/path/to/patched/proot ROOTFS=/path/to/ubuntu-rootfs \
   bash runtime/tests/test-link2symlink-errno.sh
 ```
 
-The test invokes guest `link(2)` under `-0 -l` twice. A pre-existing but
-unreadable `PROOT_L2S_DIR` must report `EACCES` (13), and a missing
+Run it as an unprivileged host user; root bypasses the mode-000 permission
+fixture. The test invokes guest `link(2)` under `-0 -l` twice. A pre-existing
+but unreadable `PROOT_L2S_DIR` must report `EACCES` (13), and a missing
 `PROOT_L2S_DIR` must report `ENOENT` (2). It creates only disposable
 temporary directories and does not call the host's hard-link syscall directly,
 modify the dpkg database, or change permissions outside its temporary fixture.
