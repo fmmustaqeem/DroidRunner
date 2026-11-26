@@ -44,11 +44,11 @@ run_case() {
     echo "=== $name (expected errno $expected_errno) ==="
     if output=$(PROOT_L2S_DIR="$l2s_dir" "$PROOT" -0 -l -r "$ROOTFS" -w /tmp \
         /usr/bin/python3 -c "$PYTHON_TEST" "$expected_errno" 2>&1); then
-        printf '%s\\n' "$output"
+        printf '%s\n' "$output"
         echo "PASS: $name"
     else
         local status=$?
-        printf '%s\\n' "$output" >&2
+        printf '%s\n' "$output" >&2
         echo "FAIL: $name (exit $status)" >&2
         return "$status"
     fi
