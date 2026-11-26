@@ -73,6 +73,7 @@ echo "$TALLOC_SHA256  $talloc_archive" | sha256sum -c - >/dev/null \
 # the script that builds it is what makes that possible.
 cp -r "$SCRIPT_DIR/patches" "$STAGE/droidrunner/patches"
 cp "$SCRIPT_DIR/build-proot.sh" "$STAGE/droidrunner/"
+cp "$SCRIPT_DIR/talloc-answers.txt" "$STAGE/droidrunner/"
 cp "$SCRIPT_DIR/README.md" "$STAGE/droidrunner/" 2>/dev/null || true
 
 cat > "$STAGE/README" <<EOF
@@ -90,7 +91,8 @@ Corresponding source for the GPL and LGPL binaries in droidrunner-$TAG.apk.
 
   droidrunner/     The scripts and patches used to produce those binaries:
                    build-proot.sh applies patches/ to proot and cross-compiles
-                   both with the Android NDK.
+                   both with the Android NDK; talloc-answers.txt supplies the
+                   pinned talloc cross-compile answers.
 
 To rebuild:
 
@@ -120,6 +122,7 @@ for required in \
     "proot/proot/src/GNUmakefile" \
     "talloc/talloc-$TALLOC_VERSION.tar.gz" \
     "droidrunner/build-proot.sh" \
+    "droidrunner/talloc-answers.txt" \
     "droidrunner/patches/string-header.patch" \
     "README" \
     "MANIFEST.txt"
