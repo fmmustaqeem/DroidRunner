@@ -1985,3 +1985,20 @@ emulated `-l` regression run. The guest-root read-only branch
 in the upstream test substitutes expected errno 13 rather than
 exercising a denied operation, so that test alone is not proof of the
 Android host-policy path. No runtime patch or test has been run.
+
+
+## Re-check of first-link reservation patch against pinned source (2026-11-26)
+
+A fresh exact-commit review of upstream `03aea836` found that
+its first-link algorithm is a useful data-preservation fix, but its diff
+is **not directly applicable** to the pinned PRoot source. The upstream
+hunk uses `read_intermediate()` and `l2s_lstat()`, while
+pinned blob `9c67b104` contains `my_readlink()` and
+`l2s_access()` instead; the latter helper also does not yet exist
+in the pinned source. A safe backport therefore needs an explicit
+compatibility adaptation, not a blind cherry-pick or patch application.
+
+Revised order: finish and test the narrowly scoped `bffb58d`
+errno correction first; treat `03aea` as a separate design
+backport requiring a fresh diff authored against the pinned file and
+its own fixture tests. Neither production patch has been applied.
