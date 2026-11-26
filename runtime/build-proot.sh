@@ -45,8 +45,16 @@ mkdir -p "$BUILD_DIR"
 
 TALLOC_DIR="$BUILD_DIR/talloc"
 TALLOC_SRC="$TALLOC_DIR/source"
-if [ ! -e "$TALLOC_SRC" ]; then
-    mkdir -p "$TALLOC_SRC"
+TALLOC_EXTRACT="$TALLOC_DIR/source.tmp"
+TALLOC_STAMP="$TALLOC_DIR/source-$TALLOC_VERSION-$TALLOC_SHA256.verified"
+
+# A directory can be left behind by an interrupted extraction. Reuse the
+# source only when this exact version/hash has a completion stamp and the
+# files needed by the build are present.
+if [ ! -f "$TALLOC_STAMP" ] || [ ! -f "$TALLOC_SRC/configure" ] || [ ! -f "$TALLOC_SRC/talloc.h" ]; then
+    rm -rf "$TALLOC_SRC" "$TALLOC_EXTRACT"
+    rm -f "$TALLOC_DIR"/source-*.verified
+    mkdir -p "$TALLOC_EXTRACT"
     archive="$TALLOC_DIR/talloc.tar.gz"
     # Upstream first, then our own copy of the same bytes.
     #
@@ -70,8 +78,12 @@ if [ ! -e "$TALLOC_SRC" ]; then
     [ -s "$archive" ] || die "Unable to download talloc from any source"
     echo "$TALLOC_SHA256  $archive" | sha256sum -c - >/dev/null \
         || die "talloc SHA-256 mismatch"
-    tar -xf "$archive" --strip-components=1 -C "$TALLOC_SRC" \
+    tar -xf "$archive" --strip-components=1 -C "$TALLOC_EXTRACT" \
         || die "Unable to extract talloc"
+    [ -f "$TALLOC_EXTRACT/configure" ] && [ -f "$TALLOC_EXTRACT/talloc.h" ] \
+        || die "talloc archive is missing required source files"
+    mv "$TALLOC_EXTRACT" "$TALLOC_SRC"
+    touch "$TALLOC_STAMP"
 fi
 
 pushd "$TALLOC_SRC" >/dev/null
