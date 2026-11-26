@@ -2033,3 +2033,13 @@ A line-by-line symbol scan of pinned `link2symlink.c` corrected the earlier func
 A proposed, explicitly unapplied unified diff is committed at `docs/patch-proposals/proot-bffb58d-pinned-errno.patch`. It adapts only the pinned `my_readlink()`, `move_and_symlink_path()`, and `decrement_link_count()` paths. It also preserves a negative `read_path()` status instead of overwriting it with potentially stale `errno` (the upstream correction in the final symlink block). This is a review artifact only: production PRoot source, runtime command, APK, and device state remain unchanged. No build or tests were run.
 
 Patch proposal commit: `80d3a3b9b95f1efb1980b8f59ccfbc359d111cf1`.
+
+
+## Wrapper return-convention review of the draft patch
+
+Reviewed the pinned helper implementations at `7266fb3e`:
+- `l2s_symlink()`, `l2s_unlink()`, and `l2s_rename()` deliberately preserve POSIX convention: `0` or `-1` with `errno` set.
+- Their shared `l2s_entry()` helper also returns `-1` with `errno` set when opening the configured backing directory fails; the implementation assigns `errno = -fd`.
+- `my_readlink()` already translates `l2s_entry()` failure to `-errno`; the draft changes only the raw `readlink/readlinkat` failure branch.
+
+This confirms that translating the affected wrapper failures to `-errno` is consistent with the pinned helper contract, rather than accidentally negating an already-negative errno. This is a source-level review only; it does not establish the actual Android SELinux failure point or prove dpkg will succeed. No runtime source edits, build, tests, Actions, or device operations were performed.
