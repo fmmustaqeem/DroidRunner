@@ -124,6 +124,7 @@ for required in \
     "droidrunner/build-proot.sh" \
     "droidrunner/talloc-answers.txt" \
     "droidrunner/patches/string-header.patch" \
+    "droidrunner/patches/proot-link2symlink-errno.patch" \
     "README" \
     "MANIFEST.txt"
 do
