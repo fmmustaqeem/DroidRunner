@@ -1806,3 +1806,43 @@ diagnosis still needs syscall-level host errno evidence from a narrowly
 instrumented PRoot build or equivalent platform diagnostics.
 
 No harness was added or executed; this is a source-derived test plan.
+
+## Backport isolation: first-link reservation versus errno regression (2026-11-26)
+
+The upstream `03aea836179e5fec9c4cb6ea8eb05a6145ef55b9` change is
+narrower than the later lifecycle work: its production diff is confined
+to `src/extension/link2symlink/link2symlink.c`. It replaces the
+follow-symlink slot probe with an `lstat`-style no-follow probe,
+reserves the intermediate symlink before moving the original file,
+skips occupied final slots, and rolls back the move when a later step
+fails. The new production code uses existing helpers
+(`l2s_lstat`, `l2s_symlink`, `l2s_rename`, `l2s_unlink`) and adds no
+new shared PRoot API or header dependency in the reviewed patch.
+
+Its added regression script `tests/test-60e0614d.sh` does, however,
+invoke `tests/link.c`. That helper was introduced by the earlier
+`bd16a7d` upstream commit, so a test-complete backport must also carry
+that helper (or provide an equivalent existing test helper). This is
+a test-file dependency, not a production-code dependency.
+
+Crucially, `03aea` repairs data-loss/collision/rollback hazards during
+initial link emulation; it does not grant Android host permission to
+rename or create symlinks. It is a sound correctness backport candidate
+for `-l`, but not a demonstrated fix for dpkg's EACCES.
+
+The errno correction `bffb58d` is a separate production concern. Its
+diff changes multiple error-return paths in the same source file and
+adds `tests/test-b1e55743.sh`; the test helper `tests/link.c` is also
+required. For reliable error reporting, review/backport the errno
+correction independently of the first-link reservation change, then
+run both regression tests. Neither change alone proves the Android
+host's SELinux/DAC behavior.
+
+### Current backport recommendation
+
+- **Production candidate A:** `03aea` link2symlink first-link reservation; narrow source-only diff, with `tests/link.c` needed for its upstream regression script.
+- **Production candidate B:** `bffb` errno normalization; separate source-only concern, test also needs `tests/link.c`.
+- **Supporting safety fix:** `bd16` failed-path-translation guard; separate correctness guard, not evidence for the dpkg permission failure.
+- **Do not import `032f` as a small patch:** its link-count lifecycle correction spans shared syscall/tracee/seccomp/fake-id0 paths and needs a dependency-complete backport series.
+
+No upstream code has been copied into DroidRunner's runtime, and no build or device test was performed.
