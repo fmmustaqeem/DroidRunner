@@ -5,7 +5,8 @@
 # nativeLibraryDir (Android 10+ forbids exec() from app data storage).
 #
 # Adapted from the Godot Android Editor Build Environment (GABE) proot build:
-# https://github.com/godotengine/android-editor-buildenv-app (MIT).
+# https://github.com/godotengine/android-editor-buildenv-app (GPL-2.0;
+# see runtime/licenses/GABE-GPL-2.0.txt and runtime/README.md).
 # proot and talloc keep their own licenses (GPL-2.0 / LGPL-3.0); see
 # runtime/README.md for source/compliance notes.
 #
