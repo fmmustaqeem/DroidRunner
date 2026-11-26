@@ -1846,3 +1846,53 @@ host's SELinux/DAC behavior.
 - **Do not import `032f` as a small patch:** its link-count lifecycle correction spans shared syscall/tracee/seccomp/fake-id0 paths and needs a dependency-complete backport series.
 
 No upstream code has been copied into DroidRunner's runtime, and no build or device test was performed.
+
+## Pinned-source errno compatibility audit (2026-11-26)
+
+A direct inspection of the exact pinned source
+`termux/proot@7266fb3e8516535682f5a9c8f3a7e70f6506eddb`
+confirms the errno mismatch addressed by upstream `bffb58d`:
+
+- `l2s_rename()`, `l2s_symlink()`, and `l2s_unlink()` return libc's
+  `-1` plus `errno` on host syscall failure.
+- `my_readlink()` likewise returned raw `readlink(2)` result `-1`,
+  although its internal contract is `-errno`.
+- Several `move_and_symlink_path()` paths propagated those values as
+  negative errno. PRoot interprets a negative extension result as the
+  errno to report to the guest. A raw `-1` can therefore be reported
+  as EPERM (1), not the actual EACCES (13), ENOENT, or other host errno.
+- Upstream `bffb58d` normalizes these failures to `-errno` and fixes
+  the EACCES fallback to compare the returned `-EACCES` value.
+
+This is a confirmed source defect in the pinned revision and a strong,
+narrowly scoped candidate for correction. It can explain misleading
+guest errno values, but does not remove Android's permission restriction
+or prove why a host operation was denied.
+
+The upstream errno regression script needs `gcc` and `mcookie`.
+Its read-only-directory assertion substitutes the expected EACCES
+result when guest uid is 0; it does not actually test denied root-mode
+host access. Its `tests/link.c` helper returns the actual errno as the
+process exit status.
+
+The first-link reservation change `03aea` is separately source-
+compatible in scope with the pinned helpers: its production change
+uses existing link2symlink helpers and adds no shared production API
+or header dependency. It reserves an intermediate symlink before
+moving the original and rolls back on subsequent failure. Its upstream
+test also requires `tests/link.c`, introduced by `bd16a7d`. This is
+a test dependency, not a production dependency.
+
+### Compatibility decision
+
+- `bffb58d`: standalone errno-correctness candidate; backport and test
+  separately.
+- `03aea`: standalone first-link collision/data-preservation candidate;
+  backport and test separately.
+- `bd16a7d`: separate failed-path-translation safety guard, not a
+  demonstrated dpkg permission fix.
+- Do not import `032f` as a small patch; it spans shared syscall,
+  tracee, seccomp, fake-id0 and extension lifecycle code.
+
+No upstream production code was copied, no tests were run, and no APK
+or device operation was performed in this review.
