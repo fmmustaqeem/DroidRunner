@@ -17,7 +17,27 @@ if [[ "$EUID" -eq 0 ]]; then
     exit 2
 fi
 
-TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/droidrunner-link2symlink.XXXXXX")
+# Keep the backing directory outside ROOTFS (so fake-root permission
+# emulation does not bypass host permissions), but on the same filesystem
+# as ROOTFS/tmp (so the extension's renameat() does not fail with EXDEV).
+ROOTFS=$(cd "$ROOTFS" && pwd -P)
+[[ -d "$ROOTFS/tmp" ]] || {
+    echo "ROOTFS/tmp is missing; cannot create the guest-side source file." >&2
+    exit 2
+}
+ROOTFS_PARENT=$(dirname "$ROOTFS")
+TMP_DIR=$(mktemp -d "$ROOTFS_PARENT/.droidrunner-link2symlink.XXXXXX") || {
+    echo "Cannot create a temporary directory beside ROOTFS: $ROOTFS_PARENT" >&2
+    exit 2
+}
+ROOTFS_TMP_DEVICE=$(stat -c '%d' "$ROOTFS/tmp")
+L2S_DEVICE=$(stat -c '%d' "$TMP_DIR")
+if [[ "$ROOTFS_TMP_DEVICE" != "$L2S_DEVICE" ]]; then
+    echo "Cannot run regression test: ROOTFS/tmp and PROOT_L2S_DIR are on different filesystems (device $ROOTFS_TMP_DEVICE vs $L2S_DEVICE)." >&2
+    rmdir "$TMP_DIR"
+    exit 2
+fi
+
 GUEST_SOURCE="/tmp/droidrunner-link2symlink-source-$BASHPID"
 GUEST_DEST="/tmp/droidrunner-link2symlink-destination-$BASHPID"
 cleanup() {
