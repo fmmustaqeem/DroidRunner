@@ -13,7 +13,7 @@
  	if (size >= PATH_MAX)
  		return -ENAMETOOLONG;
  	value[size] = '\0';
-@@ -578,7 +578,7 @@
+@@ -578,7 +580,7 @@
  		strcat(final, ".0002");
  		status = l2s_rename(original, final);
  		if (status < 0)
@@ -22,7 +22,7 @@
  		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) original, (intptr_t) final);
  		if (status < 0)
  			return status;
-@@ -586,12 +586,12 @@
+@@ -586,12 +588,12 @@
  		/* Symlink the intermediate to the final file.  */
  		status = l2s_symlink(final, intermediate);
  		if (status < 0)
@@ -37,7 +37,7 @@
  	} else {
  		/*Move the original content to new location, by incrementing count at end of path. */
  		size = my_readlink(intermediate, final);
-@@ -606,7 +606,7 @@
+@@ -606,7 +608,7 @@
  
  		status = l2s_rename(final, new_final);
  		if (status < 0)
@@ -46,7 +46,7 @@
  		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) final, (intptr_t) new_final);
  		if (status < 0)
  			return status;
-@@ -614,20 +614,17 @@
+@@ -614,20 +616,17 @@
  		/* Symlink the intermediate to the final file.  */
  		status = l2s_unlink(intermediate);
  		if (status < 0)
@@ -71,7 +71,7 @@
  		decrement_link_count(tracee, sysarg);
  		return status;
  	}
-@@ -703,7 +700,7 @@
+@@ -703,7 +702,7 @@
  
  		status = l2s_rename(final, new_final);
  		if (status < 0)
@@ -80,7 +80,7 @@
  		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) final, (intptr_t) new_final);
  		if (status < 0)
  			return status;
-@@ -713,19 +710,19 @@
+@@ -713,19 +712,19 @@
  		/* Symlink the intermediate to the final file.  */
  		status = l2s_unlink(intermediate);
  		if (status < 0)
