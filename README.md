@@ -1652,3 +1652,80 @@ it should capture the exact operation/error and verify the original
 content remains intact on failure.
 
 No such device test has been run. No runtime source has been changed.
+
+## Initial link creation and errno propagation review (2026-11-26)
+
+The pinned implementation's first-link path and its later upstream
+corrections were reviewed separately from unlink/rename cleanup.
+
+### Initial link creation
+
+In the pinned `move_and_symlink_path()`, the first emulated link:
+- selects an intermediate slot using `l2s_access()`;
+- renames the original file to its backing final name;
+- creates an intermediate symlink;
+- replaces the original guest name with a symlink;
+- creates the requested second guest name as a symlink.
+
+Upstream `03aea836179e5fec9c4cb6ea8eb05a6145ef55b9` changes this ordering:
+it reserves the intermediate first using symlink creation (so dangling
+names are not mistaken for free slots), checks stale final names without
+following symlinks, and attempts rollback if a later operation fails.
+This is directly relevant to data safety during initial link creation.
+It does not establish that Android will permit the symlink operations.
+
+### Error-code preservation
+
+Upstream `bffb58da8b3a3765298d6cd82c3fdde97262249e` fixes a separate
+defect: several host wrappers return the conventional `-1` with
+`errno` set, but the extension returned raw `-1` as if it were
+`-errno`. PRoot interprets a negative extension status as the guest
+syscall's negative errno, so failures such as EACCES/ENOENT could be
+reported as EPERM. The commit changes those paths to return `-errno`
+and adds an errno-sensitive link test.
+
+This correction is diagnostic and semantic; it does not grant permission
+to create a symlink or rename a file. The dpkg text
+`Permission denied` corresponds to EACCES, whereas EPERM is normally
+reported as `Operation not permitted`. Therefore the observed message
+does not, by itself, prove that this particular raw-`-1` bug produced
+the failure. The exact failing host operation remains unknown.
+
+### Path-translation safety
+
+Upstream `bd16a7d6b7462f754836c75503d12c00f9b770f5` prevents the
+extension from acting on untranslated guest paths after path translation
+has failed. This is an important correctness/security dependency for
+the emulation, but it is not a direct permission fix for dpkg's
+`status-old` creation.
+
+### Separate dpkg archive regression
+
+Upstream `5fcbf10f06636c5ab3125974d527f0433e2a672f` addresses a different
+compatibility issue: intermediate symlinks were not consistently treated
+as the file they represent by statx/getdents/readlink/O_NOFOLLOW paths.
+Its commit notes specifically mention tar and `dpkg-deb -b` failing
+with ELOOP. This is package archive traversal, not the initial
+`dpkg` database backup `link(status,status-old)` failure.
+
+Upstream `4f8c813a7f820ac1b5fcd49967ae99e16ee9d428` then hides intact
+internal chain files from directory listings and addresses an Android
+F2FS ordering failure affecting `cp -a`, tar and `dpkg-deb -b`.
+These are important package-management compatibility fixes, but they
+must not be misrepresented as the direct cause or proven fix for
+`status-old` EACCES.
+
+### Current conclusion and scope
+
+The strongest focused candidate set for a coherent future backport now
+includes initial-link reservation/rollback (`03aea836`), errno
+preservation (`bffb58d`), failed-translation guard (`bd16a7d`),
+intermediate resolution (`5fcbf10`), and F2FS-safe hidden-chain
+enumeration (`4f8c813`), plus their actual ancestry/API dependencies.
+The post-removal lifecycle fix (`032f82d`) remains a separate
+correctness requirement. These commits are not approved as isolated
+cherry-picks; dependency-aware review and a controlled test plan are
+still required.
+
+No runtime source was changed, no hard-link syscall was tested, and no
+APK, GitHub Actions run, or device-side operation was performed.
