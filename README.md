@@ -1964,3 +1964,24 @@ review `bffb58d` first as the errno correction, then consider
 The tests must run only inside the disposable PRoot `-l` fixture;
 no raw host hard-link test is authorized. No production patch has been
 applied, and no test, APK build, or device operation has been run.
+
+
+## Pinned call-site audit for errno patch (2026-11-26)
+
+Reviewed every use of `l2s_rename`, `l2s_symlink`,
+`l2s_unlink`, and `my_readlink` in the pinned
+`link2symlink.c` (`9c67b104` blob). The errno patch is
+not just a wrapper edit: its call-site changes are required because
+these callers currently propagate the wrappers' raw `-1` as a
+negative guest errno. The same applies to `my_readlink` after
+host `readlink/readlinkat` failure. The candidate diff covers
+these affected first-link, additional-link, decrement/unlink, and
+readlink paths. Keep the entire commit-local production hunk set
+ together; do not cherry-pick only the wrapper or first-link lines.
+
+The `bffb58d` patch is therefore suitable for a minimal
+single-file production backport, subject to a clean compile and
+emulated `-l` regression run. The guest-root read-only branch
+in the upstream test substitutes expected errno 13 rather than
+exercising a denied operation, so that test alone is not proof of the
+Android host-policy path. No runtime patch or test has been run.
