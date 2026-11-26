@@ -1449,3 +1449,19 @@ than replacing the pinned file wholesale.
 No source files under `runtime/` or `app/` were changed by this review.
 No device hard-link operation, runtime build, APK, GitHub Actions run,
 dpkg retry, merge or deployment was performed.
+
+
+## F2FS upstream test-result qualification (2026-11-26)
+
+The detailed upstream test notes for `4f8c813a7f820ac1b5fcd49967ae99e16ee9d428` were re-read before treating it as an Android fix. The result is positive but not a blanket pass:
+
+- On Android 15 ARM64 with F2FS and seccomp, the upstream full suite reported **91 passed, 97 skipped, 2 failed**; the previous revision reported **90 passed, 98 skipped, 2 failed**. The new directory-listing regression test passed, while an existing test also failed on the previous revision.
+- Without seccomp, the report was **89 passed, 98 skipped, 3 failed**, matching the previous revision's failure set.
+- Android 14 ARM64 (kernel 4.19) reported the 22 tests using `-l` or `-H` unchanged apart from the new test, which passed.
+- The commit's targeted Android 15 getdents probes checked both `getdents` and `getdents64`, large and single-entry buffers, and verified that intact chain internals were not exposed.
+
+**Interpretation:** this is strong evidence that the patch addresses a real F2FS directory-enumeration defect, but it is not evidence that the complete PRoot suite is green on Android or that dpkg's `status-old` backup is repaired. The two pre-existing Android 15 failures remain a separate compatibility concern and must be identified before accepting the whole backport.
+
+### Next source-review gate
+
+Before any runtime source change, map the two Android 15 seccomp failures (and the three non-seccomp failures) to their exact test names and determine whether they are pre-existing, skipped on this device/kernel, or affected by the proposed dependency set. Keep this investigation read-only. No hard-link test is permitted on the user's phone.
