@@ -33,10 +33,12 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 # something that was never shipped.
 read_pin() { sed -n "s/^$1=\"\${$1:-\([^}]*\)}\"/\1/p" "$SCRIPT_DIR/build-proot.sh"; }
 
-TALLOC_VERSION="$(read_pin TALLOC_VERSION)"
-TALLOC_SHA256="$(read_pin TALLOC_SHA256)"
-PROOT_REPO="$(read_pin PROOT_REPO)"
-PROOT_COMMIT="$(read_pin PROOT_COMMIT)"
+# Match the build script's environment overrides as well as its defaults.
+# A release built with overridden pins must ship the exact corresponding source.
+TALLOC_VERSION="${TALLOC_VERSION:-$(read_pin TALLOC_VERSION)}"
+TALLOC_SHA256="${TALLOC_SHA256:-$(read_pin TALLOC_SHA256)}"
+PROOT_REPO="${PROOT_REPO:-$(read_pin PROOT_REPO)}"
+PROOT_COMMIT="${PROOT_COMMIT:-$(read_pin PROOT_COMMIT)}"
 
 # These values control remote source selection and archive contents.
 # Reject incomplete or malformed pins before touching the output directory.
