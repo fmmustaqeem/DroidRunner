@@ -13,7 +13,7 @@ if [[ ! -d "$ROOTFS" ]]; then
     exit 2
 fi
 if [[ "$EUID" -eq 0 ]]; then
-    echo "Run this test as an unprivileged host user; root bypasses the mode-000 fixture." >&2
+    echo "Run this test as an unprivileged host user; root bypasses the mode-555 fixture." >&2
     exit 2
 fi
 
@@ -54,9 +54,11 @@ run_case() {
 "$PROOT" -0 -l -r "$ROOTFS" -w /tmp /usr/bin/touch "$GUEST_SOURCE"
 
 mkdir "$TMP_DIR/l2s-eacces"
-chmod 000 "$TMP_DIR/l2s-eacces"
+# The directory must open successfully; the later renameat() must fail with
+# EACCES. Mode 000 only tests open_l2s_directory(), not patched errno handling.
+chmod 555 "$TMP_DIR/l2s-eacces"
 
-run_case "fake-root inaccessible PROOT_L2S_DIR" "$TMP_DIR/l2s-eacces" \
+run_case "fake-root non-writable PROOT_L2S_DIR" "$TMP_DIR/l2s-eacces" \
     "$EXPECTED_ERROR_EACCES"
 
 run_case "fake-root missing PROOT_L2S_DIR" "$TMP_DIR/l2s-missing" \
