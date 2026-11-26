@@ -1465,3 +1465,23 @@ The detailed upstream test notes for `4f8c813a7f820ac1b5fcd49967ae99e16ee9d428` 
 ### Next source-review gate
 
 Before any runtime source change, map the two Android 15 seccomp failures (and the three non-seccomp failures) to their exact test names and determine whether they are pre-existing, skipped on this device/kernel, or affected by the proposed dependency set. Keep this investigation read-only. No hard-link test is permitted on the user's phone.
+
+
+## Android upstream failure triage — F2FS test report (2026-11-26)
+
+The exact failing test scripts named by upstream commit `4f8c813a7f820ac1b5fcd49967ae99e16ee9d428` were inspected. This narrows the residual failures:
+
+| Test | What it exercises | Relevance to link2symlink / dpkg |
+|---|---|---|
+| `test-b9d41e62.sh` | Resolving a process' `/proc/<pid>/fd/<fd>` symlink after shell redirection/dup2 and a background-process fd | Descriptor-name tracking; adjacent PRoot path/descriptor behavior, not the dpkg status backup itself |
+| `test-d92b57ca.sh` | Nested PRoot invocation with `PROOT_NO_SUBRECONF=1` and `-v 1` | Re-exec / environment / verbosity behavior; not link2symlink filesystem emulation |
+| `test-fbca9cc2.sh` | Running `strace` inside PRoot and checking execve trace output | Nested tracing/execve behavior; not the dpkg backup path |
+| `test-4cb68feb.sh` | 32-bit/64-bit exec transitions, auxv, fake IDs and kernel compatibility handling | ABI/execve/fake_id0 behavior; upstream reports it was intermittent on the previous revision too |
+
+Upstream's Android 15 report says `test-b9d41e62` failed both before and after the F2FS listing patch. With seccomp enabled, `test-4cb68feb` failed once because a crashing helper intermittently made PRoot exit 0; the report says the same probe had failed 4/15 times on the previous revision. Without seccomp, `test-d92b57ca` and `test-fbca9cc2` also failed, matching the previous revision's failure set. Thus these results do not show a regression introduced by the F2FS directory-listing patch, but they do show broader Android PRoot compatibility issues that should be kept separate from the narrow dpkg investigation.
+
+### Backport scope decision
+
+For the dpkg `status-old` case, prioritize the core emulated-link creation and link-count lifecycle plus the required path translation / errno behavior, then the intermediate-file resolution and F2FS getdents integrity layer. Do not pull in descriptor / execve / fake_id0 fixes merely because they appear in the same upstream range; include them only where an actual shared-code dependency or selected broader compatibility requirement proves necessary. Keep the known Android test failures documented as separate compatibility gates.
+
+This is a source-level classification from upstream test scripts and commit notes, not a claim that DroidRunner has passed these tests. No runtime source, workflow or device was changed; no Actions, APK build, or on-device test was run.
