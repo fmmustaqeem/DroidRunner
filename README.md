@@ -1591,3 +1591,64 @@ a ready-to-apply patch series. The next review gate is to map the exact
 entry/exit event contract, fake_id0 permission hooks, renameat2 syscall
 definitions and extension header changes between the pinned tree and
 032f82d. No source code was edited in DroidRunner and no patch was applied.
+
+## dpkg failure-path correction: creation versus cleanup (2026-11-26)
+
+The earlier review placed too much emphasis on the
+`032f82d579c3fc45e111b04d6c9c50d38d629ecb` lifecycle fix. Its actual
+scope is unlink/rename cleanup **after** a faked link name is removed.
+It does not implement the initial `link(status, status-old)` creation
+that dpkg reports as failing. It remains relevant to later dpkg updates,
+but it is not, by itself, the direct fix for the first backup-name creation.
+
+### The initial dpkg link path in the pinned source
+
+In pinned `link2symlink.c`, `move_and_symlink_path()` handles a first
+link by:
+1. Choosing an intermediate name with `l2s_access()`.
+2. Renaming the original file to the backing final name.
+3. Creating the intermediate symlink to that final name.
+4. Creating the original guest name as a symlink to the intermediate.
+5. Creating the requested second guest name as a symlink to the same
+   intermediate, then returning success.
+
+This path uses host `rename()` and `symlink()` operations. The reported
+dpkg message alone does not reveal which one failed or the exact errno.
+The existing Android diagnostics (ordinary directory writes and rename
+work) do not prove that each PRoot-generated symlink/rename in this
+sequence succeeds under the app's SELinux policy.
+
+### Upstream changes most directly related to link creation
+
+- `03aea836179e5fec9c4cb6ea8eb05a6145ef55b9`: changes first-link
+  creation to reserve the intermediate before moving the original file,
+  checks dangling/stale slots with lstat semantics, and rolls back the
+  original file if later symlink creation fails. This directly changes
+  the initial link-creation path and is more relevant to the reported
+  first `status-old` creation failure than 032f82d.
+- `bffb58da8b3a3765298d6cd82c3fdde97262249e`: corrects host syscall
+  error propagation (`-errno` rather than raw `-1`) in the emulation.
+  This is important to preserve the actual failure reason, but does not
+  itself make a denied host operation succeed.
+- `bd16a7d6b7462f754836c75503d12c00f9b770f5`: prevents link2symlink
+  from processing untranslated guest paths after path translation has
+  already failed.
+- `87c4109a528e8eeec3259fd230b9f73f99c95367`: treats broken emulated
+  links as broken symlinks instead of failing lstat/stat paths; relevant
+  to later package-manager traversal and cleanup.
+- `032f82d579c3fc45e111b04d6c9c50d38d629ecb`: fixes post-operation
+  unlink/rename link-count accounting. It is a later lifecycle safeguard,
+  not the initial backup-link creation fix.
+
+### Corrected diagnostic conclusion
+
+The current evidence does not establish that the dpkg failure is caused
+by the post-unlink/rename lifecycle bug. The direct creation path and the
+host syscall that returns EACCES still need to be isolated. Since the
+device forbids hard links, no direct hard-link probe is appropriate.
+A future safe test must use an isolated disposable guest file and the
+PRoot-emulated `link()` path, without touching dpkg's live status files;
+it should capture the exact operation/error and verify the original
+content remains intact on failure.
+
+No such device test has been run. No runtime source has been changed.
