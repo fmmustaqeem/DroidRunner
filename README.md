@@ -1485,3 +1485,74 @@ Upstream's Android 15 report says `test-b9d41e62` failed both before and after t
 For the dpkg `status-old` case, prioritize the core emulated-link creation and link-count lifecycle plus the required path translation / errno behavior, then the intermediate-file resolution and F2FS getdents integrity layer. Do not pull in descriptor / execve / fake_id0 fixes merely because they appear in the same upstream range; include them only where an actual shared-code dependency or selected broader compatibility requirement proves necessary. Keep the known Android test failures documented as separate compatibility gates.
 
 This is a source-level classification from upstream test scripts and commit notes, not a claim that DroidRunner has passed these tests. No runtime source, workflow or device was changed; no Actions, APK build, or on-device test was run.
+
+## dpkg status-backup lifecycle: focused upstream cut (2026-11-26)
+
+The reported failure occurs in dpkg's backup step: its atomic-file code calls
+`link(status, status-old)`. PRoot's `-l` option is the mechanism intended
+to emulate that operation; the option alone does not establish that the
+emulation is correct across the later update and cleanup steps.
+
+### Core candidates on the pinned ancestry
+
+The following upstream commits are the first candidates to review together
+against the exact DroidRunner pin. They are not yet applied or proven to be
+a minimal sufficient patch set:
+
+- `032f82d579c3fc45e111b04d6c9c50d38d629ecb` — records the emulated
+  link being removed and decrements its count only after the kernel
+  successfully removes/replaces the name. This is directly relevant to
+  dpkg's subsequent backup replacement and cleanup operations.
+- `bd16a7d6b7462f754836c75503d12c00f9b770f5` — prevents extension
+  processing when path translation failed; avoids acting on untranslated
+  host paths.
+- `bffb58da8b3a3765298d6cd82c3fdde97262249e` — propagates the actual
+  host syscall errno instead of turning raw `-1` into a misleading
+  `EPERM`.
+- `87c4109a528e8eeec3259fd230b9f73f99c95367` — leaves broken emulated
+  links to the kernel so ordinary lstat/unlink handling does not fail.
+- `03aea836179e5fec9c4cb6ea8eb05a6145ef55b9` — reserves the intermediate
+  chain entry before moving the original file and restores the original
+  name on failure.
+
+These commits form the focused core lifecycle candidate segment in upstream
+history. The full dependency chain still needs to be replayed against the
+pinned source, including any intervening shared-code changes; this list is
+not a cherry-pick instruction.
+
+### Separate correctness layers
+
+- `05a93edfc85fe53d5107f2f0b0cd21e31a7c61bb` and
+  `fa47780ce5576eb22d2f779d700a44640d957529`: large link-count and
+  suffix-capacity behavior. Important general correctness, but not shown
+  to be required by the ordinary two-name dpkg backup case.
+- `1ce2525b3c30276ffd08fe35accc081921151918`,
+  `355f840ea50c9756a2c74b94cf96e9010691cf57`, and
+  `b8b3e6280bc52d5e61c78131bd5a33738714a3c1`: directory-entry type and
+  getdents handling; required to assess directory enumeration compatibility,
+  not the initial `link(status, status-old)` syscall itself.
+- `5fcbf10f06636c5ab3125974d527f0433e2a672f` and
+  `4f8c813a7f820ac1b5fcd49967ae99e16ee9d428`: intermediate-file
+  resolution and F2FS-safe hiding of internal chain files. The upstream
+  regression notes specifically mention tar/dpkg-deb and Android F2FS;
+  these are separate from proof that dpkg's status backup works.
+- `482e5bdb8b1a47e2626128bc574c81566f2b50ca` and
+  `cfcb6233b20defb4c9f9ed4bd9eb10a6485afd81`: prevent chain-count
+  collisions and protect internal chain files from destructive operations.
+- `c6880fcf8f4bbc85e200cc04589062754805fbc9`: handles
+  `linkat(AT_SYMLINK_FOLLOW)`; do not treat it as equivalent to fixing
+  the ordinary `link()` syscall used by dpkg's backup path.
+
+### Acceptance criteria — still untested
+
+A future controlled development test must separately verify:
+1. Emulated creation of the backup name for a regular file.
+2. Replacement/rename of the active status file while the backup remains valid.
+3. Removal of the old backup and correct remaining link count after success.
+4. Failed rename/unlink paths leave the chain and data intact.
+5. Directory enumeration and archive operations remain correct on the target
+   filesystem.
+
+The user's Android device is not a test target for hard-link operations.
+No such probe was run. No PRoot runtime patch, APK build, GitHub Actions run,
+dpkg retry, device operation, merge or deployment was performed.
