@@ -1110,3 +1110,36 @@ unconfirmed.
 
 No build, test, runtime replacement, APK, device operation, Actions run,
 merge or deployment was performed.
+
+
+## Upstream link2symlink backport dependency map (2026-11-26)
+
+Read-only review of the upstream commit diffs identifies the following
+compatibility layers beyond merely enabling `-l`:
+
+| Upstream change | Source files touched | Why it matters |
+| --- | --- | --- |
+| `5fcbf10f0663` | `src/extension/link2symlink/link2symlink.c` | Makes chain intermediates behave as the file they represent for `statx`, directory walks and `O_NOFOLLOW`; upstream specifically reports fixing `tar` and `dpkg-deb -b`. |
+| `4f8c813a7f82` | `src/extension/link2symlink/link2symlink.c`, `src/extension/hidden_files/hidden_files.c`, `src/syscall/chain.c`, `src/syscall/chain.h` | Coordinates filtering intact internal chain files from directory listings; addresses Android F2FS enumeration order, `cp -a`, self-referential intermediates and cleanup. |
+| `482e5bdb8b1a` | `src/extension/link2symlink/link2symlink.c` | Prevents replacing an occupied chain-count filename and losing data. |
+| `cfcb6233b20d` | `src/extension/link2symlink/link2symlink.c` | Protects internal chain files during unlink/rename operations. |
+| `215fa9f90aea` | `src/extension/extension.h`, `src/extension/link2symlink/link2symlink.c` | Repairs chain paths after directory renames; changes the shared `SYMLINK_DEREFERENCED` event contract so an extension can substitute the dereferenced path. |
+| `bffb58da8b3a`, `bd16a7d6b746`, `c6880fcf8f4b` | `src/extension/link2symlink/link2symlink.c` | Correct error propagation, avoid acting on failed path translations, and handle `linkat(AT_SYMLINK_FOLLOW)`. |
+| `8f1029094bea` | `src/extension/link2symlink/link2symlink.c` | Clang 21 unsigned-index/pointer arithmetic correction; only applicable if the runtime is built with an affected Clang toolchain. |
+
+The F2FS-specific high-priority set is not a one-file patch: at minimum,
+the directory-listing change coordinates three implementation files
+(`link2symlink.c`, `hidden_files.c`, and `syscall/chain.c/.h`) plus
+the associated tests. The directory-rename repair also requires the
+shared extension event contract change in `extension.h`; copying only
+its link2symlink source would leave the callback contract inconsistent.
+
+**Backport decision:** do not cherry-pick isolated source files or enable
+`-l` and call the dpkg issue fixed. First prepare a coherent, ordered
+backport against the pinned revision, including the upstream regression
+tests and a build/test plan. The existing Terminal-only `-l` change is
+still a controlled diagnostic/compatibility step, not a verified dpkg
+repair.
+
+No upstream source was copied into DroidRunner in this step. No build,
+test, device operation, Actions run, merge or deployment was performed.
