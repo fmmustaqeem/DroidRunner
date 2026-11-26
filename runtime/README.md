@@ -42,9 +42,13 @@ PROOT=/path/to/patched/proot ROOTFS=/path/to/ubuntu-rootfs \
 ```
 
 Run it as an unprivileged host user; root bypasses the mode-555 permission
-fixture. The test invokes guest `linkat(2)` via coreutils `ln` under `-0 -l` twice. A
-non-writable but openable `PROOT_L2S_DIR` must fail at the subsequent
-`renameat(2)` with `EACCES` (13), exercising the patched errno propagation.
+fixture. The script creates its temporary backing directory beside `ROOTFS`,
+outside the guest rootfs but on the same filesystem as `ROOTFS/tmp`; it
+checks the device IDs and stops if that condition is not met, avoiding a
+misleading cross-device `renameat(2)` failure (`EXDEV`). The test invokes
+guest `linkat(2)` via coreutils `ln` under `-0 -l` twice. A non-writable but
+openable `PROOT_L2S_DIR` must fail at the subsequent `renameat(2)` with
+`EACCES` (13), exercising the patched errno propagation.
 A missing `PROOT_L2S_DIR` must report `ENOENT` (2). It creates only
 disposable temporary directories and does not call the host's hard-link
 syscall directly, modify the dpkg database, or change permissions outside its
