@@ -40,6 +40,20 @@ jobs:
           fi
           echo "publishing $TAG"
 
+      # A runtime release is immutable once published. Check before the
+      # expensive ARM64 bundle build, then keep the publish step fail-closed
+      # as well in case another publisher creates the tag in the meantime.
+      - name: Refuse an existing runtime release
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists; refusing to overwrite its assets."
+            exit 1
+          fi
+
       - uses: actions/checkout@v7
 
       - name: Build runtime bundle
@@ -203,10 +217,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
         run: |
-          gh release create "$TAG" --title "Runtime bundle $TAG" \
-            --notes "ARM64 runtime bundle: Ubuntu rootfs + official Actions runner. Point the app at runtime-manifest.json below." \
-            || true
-          gh release upload "$TAG" --clobber \
+          gh release create "$TAG" --verify-tag --title "Runtime bundle $TAG" \
+            --notes "ARM64 runtime bundle: Ubuntu rootfs + official Actions runner. Point the app at runtime-manifest.json below."
+          gh release upload "$TAG" \
             runtime/out/droidrunner-runtime-arm64.tar.gz \
             runtime/out/runtime-manifest.json \
             runtime/out/runtime-manifest.json.sig
