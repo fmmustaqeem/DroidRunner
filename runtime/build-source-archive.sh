@@ -20,6 +20,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TAG="${1:-${GITHUB_REF_NAME:-dev}}"
+SOURCE_REPOSITORY="${GITHUB_REPOSITORY:-m96-chan/DroidRunner}"
 OUT_DIR="${OUT_DIR:-$SCRIPT_DIR/out}"
 STAGE="$OUT_DIR/source-$TAG"
 ARCHIVE="$OUT_DIR/droidrunner-$TAG-source.tar.gz"
@@ -99,7 +100,7 @@ To rebuild:
   ANDROID_NDK_ROOT=/path/to/ndk droidrunner/build-proot.sh
 
 DroidRunner itself is GPL-2.0-only; its own source is at
-https://github.com/m96-chan/DroidRunner at tag $TAG.
+https://github.com/$SOURCE_REPOSITORY at tag $TAG.
 
 Two files there carry an additional permission under GPL-2 section 3 allowing
 them to be combined with Qualcomm's QNN libraries; the notice is in each file.
