@@ -2017,3 +2017,10 @@ The pinned-source adaptation is confined to `src/extension/link2symlink/link2sym
 No wrapper signature or shared PRoot API change is required. The upstream `tests/link.c` and `test-b1e55743.sh` are a separate test adaptation; their `-l` guest `link()` call is suitable for a disposable PRoot fixture, but it must not be run as a raw host hard-link probe. The read-only fixture branch's expected `13` is synthetic when the test process is fake-root, so it does not demonstrate an Android SELinux denial.
 
 **Current disposition:** exact patch map reviewed; runtime source still unchanged. Next implementation step would be to apply only this errno patch, inspect the complete diff, then run the upstream emulated-link regression in an isolated fixture. No Actions, build, or device test.
+
+
+## Additional pinned-version incompatibility found in `bffb58d` (2026-11-26)
+
+A second exact full-file symbol scan found that pinned blob `9c67b104` has **no** `decrement_removed_link_count()` function and no `EACCES` fallback branch. The corresponding upstream hunk in `bffb58d` therefore cannot be applied to this pinned revision and must be omitted, not force-fitted. The pinned file does contain `decrement_intermediate_count()` and its wrapper call-sites, which remain the applicable errno-correction scope.
+
+Consequently the prior backport map's item 5 (the `-EACCES` comparison) is withdrawn for this pinned source. The exact backport is smaller than the upstream commit: adapt only the matching `my_readlink()`, `move_and_symlink_path()`, and `decrement_intermediate_count()` hunks after a fresh parent/pinned diff review. Do not claim the complete upstream test is directly compatible until its missing-function assumptions are reconciled. No production source has been edited.
