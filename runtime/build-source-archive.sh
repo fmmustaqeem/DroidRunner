@@ -38,8 +38,15 @@ TALLOC_SHA256="$(read_pin TALLOC_SHA256)"
 PROOT_REPO="$(read_pin PROOT_REPO)"
 PROOT_COMMIT="$(read_pin PROOT_COMMIT)"
 
+# These values control remote source selection and archive contents.
+# Reject incomplete or malformed pins before touching the output directory.
+[[ "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || die "invalid release tag: use a single safe path component"
+[[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \\
+    || die "invalid source repository: expected owner/repository"
 [ -n "$TALLOC_VERSION" ] || die "cannot read TALLOC_VERSION from build-proot.sh"
-[ -n "$PROOT_COMMIT" ] || die "cannot read PROOT_COMMIT from build-proot.sh"
+[[ "$TALLOC_SHA256" =~ ^[[:xdigit:]]{64}$ ]] || die "cannot read a valid TALLOC_SHA256 from build-proot.sh"
+[[ "$PROOT_REPO" =~ ^https://github\\.com/[^/]+/[^/]+(\\.git)?$ ]] || die "cannot read a valid PROOT_REPO from build-proot.sh"
+[[ "$PROOT_COMMIT" =~ ^[[:xdigit:]]{40}$ ]] || die "cannot read a valid PROOT_COMMIT from build-proot.sh"
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE/proot" "$STAGE/talloc" "$STAGE/droidrunner"
@@ -114,6 +121,7 @@ component	version	licence	role
 proot	$PROOT_COMMIT	GPL-2.0	libproot.so and ELF loaders, patched
 talloc	$TALLOC_VERSION	LGPL-3.0	statically linked into libproot.so
 DroidRunner	$TAG	GPL-2.0-only	the application
+source-repository	$SOURCE_REPOSITORY	—	application source location at tag $TAG
 EOF
 
 # An archive that is missing a piece is worse than no archive, because it
