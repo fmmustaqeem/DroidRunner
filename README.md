@@ -1229,3 +1229,119 @@ GitHub Actions, build an APK, or retry dpkg on-device at this stage.
 Next implementation work must start from a reviewed patch set against
 the exact pinned source, with the compiler version recorded and upstream
 regression tests retained. This update is documentation only.
+
+## Expanded PRoot history audit — earlier shortlist superseded (2026-11-26)
+
+A second audit enumerated the full pinned-to-upstream comparison history
+(`7266fb3e8516535682f5a9c8f3a7e70f6506eddb` →
+`c0b2d098469a64a88c0a7e240b1a1dc252988cdb`) and queried the file lists
+for additional commits. The earlier nine-commit shortlist was incomplete.
+This section supersedes it as the inventory of candidate changes; it is
+still a source-review inventory, not an instruction to cherry-pick every
+commit blindly.
+
+### A. Core emulated-link lifecycle and correctness
+
+- `032f82d579c3fc45e111b04d6c9c50d38d629ecb` — decrement emulated
+  link counts after the kernel removes a name; adds renameat2 lifecycle
+  regression coverage.
+- `87c4109a528e8eeec3259fd230b9f73f99c95367` — leave broken emulated
+  links to the kernel; adds a regression test.
+- `03aea836179e5fec9c4cb6ea8eb05a6145ef55b9` — reserve the intermediate
+  before moving the original file; adds collision/race coverage.
+- `05a93edfc85fe53d5107f2f0b0cd21e31a7c61bb` and
+  `fa47780ce5576eb22d2f779d700a44640d957529` — extend link-count
+  representation and name capacity; add large-count and same-name tests.
+- `7f2fab0fb3a9e15f63ac47497ebc29d72281206e` — include emulated links
+  in fstat link counts.
+- `968ae1be84c69a607dbcd43ee514ab04753d60c5` — preserve symbolic links
+  as symbolic links when creating emulated links.
+- `bd16a7d6b7462f754836c75503d12c00f9b770f5` — ignore extension
+  handling when syscall path translation failed.
+- `bffb58da8b3a3765298d6cd82c3fdde97262249e` — propagate the actual
+  host syscall errno rather than raw -1.
+- `c6880fcf8f4bbc85e200cc04589062754805fbc9` — preserve chain counts
+  for linkat(AT_SYMLINK_FOLLOW).
+- `8f1029094bea9b82c71d0fe928e39f95fa7aa58b` — Clang 21 unsigned
+  pointer/index correction, conditional on the build toolchain.
+
+These are especially important to review together for dpkg's emulated
+link creation followed by later rename/unlink and package database updates.
+The exact subset needed by dpkg must be established from the patch
+dependencies and regression tests, not inferred from commit titles.
+
+### B. Directory enumeration, archive and F2FS integrity
+
+- `1ce2525b3c30276ffd08fe35accc081921151918` — report the emulated
+  hard link's target file type in getdents results; adds getdents tests.
+- `355f840ea50c9756a2c74b94cf96e9010691cf57` — do not modify failed
+  getdents calls in hidden_files; includes regression coverage.
+- `b8b3e6280bc52d5e61c78131bd5a33738714a3c1` — parse getdents records
+  for 32-bit tracees; changes hidden_files parsing.
+- `5fcbf10f06636c5ab3125974d527f0433e2a672f` — resolve intermediate
+  files consistently for statx/getdents/readlink/O_NOFOLLOW; upstream
+  test notes cover tar and dpkg-deb.
+- `4f8c813a7f820ac1b5fcd49967ae99e16ee9d428` — hide intact internal
+  chain files from directory listings. This is a coordinated change to
+  link2symlink, hidden_files and syscall chain handling, with regression
+  tests; upstream specifically reports Android F2FS enumeration issues.
+- `482e5bdb8b1a47e2626128bc574c81566f2b50ca` — protect occupied
+  link-count filenames from being overwritten.
+- `cfcb6233b20defb4c9f9ed4bd9eb10a6485afd81` — protect internal chain
+  files during unlink/rename.
+
+This layer is not safely backported by copying only
+`link2symlink.c`: the upstream change set includes
+`hidden_files.c`, `src/syscall/chain.c/.h`, and tests.
+
+### C. Path translation, descriptor and extension integration
+
+- `543566106a8886bf052730d91d776d90f42c2cf5` — changes path
+  canonicalization and the HOST_PATH extension contract to identify a
+  final symlink target; inspect as a prerequisite where later link2symlink
+  code relies on final-component semantics.
+- `0e4287546a7df1a7f4395c75f7eca8b62d5f2cc9` — avoid readlink on paths
+  already known not to be symlinks.
+- `a396094c7ccc1a64a64efb71811860d0284fda5a` — preserve descriptor
+  naming for O_NOFOLLOW opens; adds a dedicated regression test.
+- `7471c713607fbdf65236ba522aca3c0fdc38d1cc` — preserve emulated-link
+  names for duplicated descriptors.
+- `8f467b0991d74f277eb841362abfbf8755942f97` — integrates the path
+  reported for an executed program with link2symlink, changing execve,
+  path canonicalization and extension interfaces. This appears broader
+  than dpkg's status-file backup path; retain only if required by the
+  selected shared API or broader terminal compatibility scope.
+- `215fa9f90aeaac70bf9a6580997449cef13c29bf` — repairs chain paths
+  after directory renames and changes the shared symlink-dereference
+  extension event contract.
+
+The extension/API changes must be reviewed with their matching core
+changes. Do not transplant a later extension implementation onto older
+headers or callback semantics.
+
+### Backport work order (candidate order, not yet applied)
+
+1. Freeze the exact pinned source tree and determine the NDK/Clang version
+   used for the intended native runtime build.
+2. Reconstruct the complete dependency chain for core link emulation:
+   link-count lifecycle, broken-link handling, intermediate reservation,
+   count encoding, symbolic-link behavior, failed translation, errno
+   propagation and linkat-follow.
+3. Reconstruct the path/descriptor compatibility prerequisites used by
+   that implementation; include only the exec/proc-descriptor features
+   justified by shared dependencies or the explicitly chosen scope.
+4. Backport directory-entry type and hidden-files/getdents correctness
+   together with the syscall-chain coordination and their regression tests.
+5. Backport intermediate resolution, chain collision protection and
+   unlink/rename protection as a coherent filesystem-integrity layer.
+6. Backport directory-rename repair only with its complete extension
+   event contract and matching core path-translation changes.
+7. Run the upstream regression tests in a controlled development
+   environment, then add focused acceptance tests for dpkg-style link,
+   rename, unlink and link-count behavior. Archive tests (tar,
+   dpkg-deb, cp -a) are separate coverage; they do not prove the dpkg
+   status backup itself is fixed.
+
+No PRoot runtime source has been changed in DroidRunner by this audit.
+No hard-link test was run on the user's phone. No build, APK, GitHub
+Actions, device operation, dpkg retry, merge or deployment was performed.
