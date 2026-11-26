@@ -1896,3 +1896,24 @@ a test dependency, not a production dependency.
 
 No upstream production code was copied, no tests were run, and no APK
 or device operation was performed in this review.
+
+
+## Upstream ancestry boundary check (2026-11-26)
+
+A repository-level comparison against the exact pinned PRoot revision
+`7266fb3e8516535682f5a9c8f3a7e70f6506eddb` found that the
+upstream references reviewed above are not near the pin in history:
+`03aea836` is 41 commits ahead and `bffb58d` is 39 commits
+ahead. Those comparisons include broad accumulated changes across
+syscall, tracee, fake-id0, seccomp, and other extension files. This is
+not evidence that either individual commit changes all those files;
+it means the target source snapshots at those refs contain a much
+broader accumulated codebase than DroidRunner's pinned revision.
+
+Therefore, do not copy the full upstream `link2symlink.c` snapshot
+from either ref. The candidate commit's own parent-to-commit diff must
+be isolated and reviewed against the pinned file, and every referenced
+helper/API must be checked in the pinned tree before preparing a
+minimal backport. Until that exact commit-local diff is verified, the
+previous “standalone source-compatible” wording is provisional, not a
+backport approval. No runtime source was changed in this ancestry check.
