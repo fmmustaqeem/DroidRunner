@@ -97,6 +97,7 @@ git -C "$PROOT_SRC" fetch --quiet origin "$PROOT_COMMIT" 2>/dev/null || true
 git -C "$PROOT_SRC" checkout --quiet "$PROOT_COMMIT" || die "Unable to checkout $PROOT_COMMIT"
 git -C "$PROOT_SRC" checkout -- .
 patch -d "$PROOT_SRC" -p1 < "$SCRIPT_DIR/patches/string-header.patch" || die "Unable to patch proot"
+patch -d "$PROOT_SRC" -p1 < "$SCRIPT_DIR/patches/proot-link2symlink-errno.patch" || die "Unable to apply link2symlink errno patch"
 
 CPPFLAGS="-I$TALLOC_DIR/include" LDFLAGS="-L$TALLOC_DIR/lib" \
     make -C "$PROOT_SRC/src" \
