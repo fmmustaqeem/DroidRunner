@@ -44,7 +44,7 @@ jobs:
       - run: tools/check-executed-everywhere.sh
       - uses: actions/upload-artifact@v7
         with:
-          name: app-debug
+          name: fmdroid
           path: app/build/outputs/apk/debug/app-debug.apk
 
   # The operator matrix is reduced in Python, and every mistake in that
@@ -104,3 +104,27 @@ jobs:
       # Exercise the release workflow's actual guards against temporary git
       # repositories, including a dispatch branch ahead of its requested tag.
       - run: python -m unittest discover -s tools/tests -p 'test_app_release.py' -v
+
+  upstream-build:
+    # Compile the untouched upstream source separately from FM's modified fork.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: m96-chan/DroidRunner
+          ref: main
+          path: upstream
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          build-root-directory: upstream
+      - name: Build upstream proot jniLibs
+        working-directory: upstream
+        run: ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" runtime/build-proot.sh
+      - name: Compile and test untouched upstream source
+        working-directory: upstream
+        run: ./gradlew testDebugUnitTest assembleDebug

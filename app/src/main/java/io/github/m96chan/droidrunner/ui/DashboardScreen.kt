@@ -45,6 +45,8 @@ fun DashboardScreen(
     runtime: RuntimeInstaller,
     monitor: SystemMonitor,
     onOpenSetup: () -> Unit,
+    onOpenTerminal: () -> Unit,
+    onToggleFloating: () -> Unit,
     onStartRunner: () -> Unit,
     onStopRunner: () -> Unit,
 ) {
@@ -61,7 +63,25 @@ fun DashboardScreen(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Header(capabilities, runner, onOpenSetup)
+        Header(capabilities, runner, onOpenSetup, onOpenTerminal)
+        // Primary controls stay above the scrollable dashboard content.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedButton(onClick = onOpenSetup, modifier = Modifier.weight(1f)) { Text("Setup") }
+            OutlinedButton(onClick = onOpenTerminal, modifier = Modifier.weight(1f)) { Text("Terminal") }
+            OutlinedButton(onClick = onToggleFloating, modifier = Modifier.weight(1f)) { Text("Floating") }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                enabled = runtime.installed && File(runtime.runtimeDir, ".configured").isFile && runner.state == RunnerState.STOPPED,
+                onClick = onStartRunner,
+                modifier = Modifier.weight(1f),
+            ) { Text("Start Runner") }
+            OutlinedButton(
+                enabled = runner.state != RunnerState.STOPPED,
+                onClick = onStopRunner,
+                modifier = Modifier.weight(1f),
+            ) { Text("Stop Runner") }
+        }
         CpuPanel(system)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MemPanel(system, Modifier.weight(1f))
@@ -75,12 +95,18 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun Header(capabilities: DeviceCapabilities, runner: RunnerSnapshot, onOpenSetup: () -> Unit) {
+private fun Header(capabilities: DeviceCapabilities, runner: RunnerSnapshot, onOpenSetup: () -> Unit, onOpenTerminal: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("DroidRunner", style = MaterialTheme.typography.headlineMedium, color = BtopColors.Text)
         Spacer(Modifier.weight(1f))
         Text("● ", color = runner.state.color(), style = MaterialTheme.typography.bodyLarge)
         Text(runner.label(), color = runner.state.color(), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "Terminal",
+            color = BtopColors.Cyan,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.clickable { onOpenTerminal() }.padding(start = 10.dp),
+        )
         Text(
             "⚙",
             color = BtopColors.Yellow,
@@ -308,22 +334,7 @@ private fun RunnerPanel(
                 )
             }
         }
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                enabled = runtime.installed && configuredRepo != null && runner.state == RunnerState.STOPPED,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = BtopColors.Green,
-                    contentColor = BtopColors.Background,
-                ),
-                onClick = onStartRunner,
-                modifier = Modifier.weight(1f),
-            ) { Text("Start") }
-            OutlinedButton(
-                enabled = runner.state != RunnerState.STOPPED,
-                onClick = onStopRunner,
-                modifier = Modifier.weight(1f),
-            ) { Text("Stop") }
-        }
+
     }
 }
 
