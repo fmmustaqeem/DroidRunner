@@ -1,0 +1,102 @@
+--- a/src/extension/link2symlink/link2symlink.c
++++ b/src/extension/link2symlink/link2symlink.c
+@@ -294,7 +294,7 @@
+ 		? readlink(symlink, value, PATH_MAX)
+ 		: readlinkat(dir_fd, name, value, PATH_MAX);
+ 	if (size < 0)
+-		return size;
++		return errno > 0 ? -errno : -EIO;
+ 	if (size >= PATH_MAX)
+ 		return -ENAMETOOLONG;
+ 	value[size] = '\0';
+@@ -578,7 +580,7 @@
+ 		strcat(final, ".0002");
+ 		status = l2s_rename(original, final);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) original, (intptr_t) final);
+ 		if (status < 0)
+ 			return status;
+@@ -586,12 +588,12 @@
+ 		/* Symlink the intermediate to the final file.  */
+ 		status = l2s_symlink(final, intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 
+ 		/* Symlink the original path to the intermediate one.  */
+ 		status = symlink(intermediate, original);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 	} else {
+ 		/*Move the original content to new location, by incrementing count at end of path. */
+ 		size = my_readlink(intermediate, final);
+@@ -606,7 +608,7 @@
+ 
+ 		status = l2s_rename(final, new_final);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) final, (intptr_t) new_final);
+ 		if (status < 0)
+ 			return status;
+@@ -614,20 +616,17 @@
+ 		/* Symlink the intermediate to the final file.  */
+ 		status = l2s_unlink(intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = l2s_symlink(final, intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 	}
+ 
+ 	/* Perform symlink() operation within PRoot.  */
+ 	status = read_path(tracee, final, peek_reg(tracee, CURRENT, link_target_sysarg));
+-	if (status >= 0) {
+-		status = symlink(intermediate, final);
+-		if (status < 0) status = -errno;
+-	}
+-	if (status < 0) {
++	if (status >= 0 && symlink(intermediate, final) < 0)
+ 		status = -errno;
++	if (status < 0) {
+ 		decrement_link_count(tracee, sysarg);
+ 		return status;
+ 	}
+@@ -703,7 +702,7 @@
+ 
+ 		status = l2s_rename(final, new_final);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = notify_extensions(tracee, LINK2SYMLINK_RENAME, (intptr_t) final, (intptr_t) new_final);
+ 		if (status < 0)
+ 			return status;
+@@ -713,19 +712,19 @@
+ 		/* Symlink the intermediate to the final file.  */
+ 		status = l2s_unlink(intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 
+ 		status = l2s_symlink(final, intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 	} else {
+ 		/* If it is the last, delete the intermediate and final */
+ 		status = l2s_unlink(intermediate);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = l2s_unlink(final);
+ 		if (status < 0)
+-			return status;
++			return -errno;
+ 		status = notify_extensions(tracee, LINK2SYMLINK_UNLINK, (intptr_t) final, 0);
+ 		if (status < 0)
+ 			return status;
